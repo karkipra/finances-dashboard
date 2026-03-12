@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Nastik Finances{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  {% block styles %}{% endblock %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">Nastik Finances</div>
+    <div class="nav-links">
+      <a href="/budget" class="{% if request.path == '/budget' %}active{% endif %}">Monthly Budget</a>
+      <a href="/net-worth" class="{% if request.path == '/net-worth' %}active{% endif %}">Net Worth</a>
+    </div>
+    <button class="btn-theme" id="themeToggle" title="Toggle light/dark mode">☀</button>
+  </nav>
+
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // Theme toggle (dark default) - apply saved theme immediately to avoid flash
+    (function() {
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } else if (window.innerWidth < 640) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const btn = document.getElementById('themeToggle');
+      if (document.documentElement.getAttribute('data-theme') === 'light') btn.textContent = '☾';
+      else btn.textContent = '☀';
+
+      btn.addEventListener('click', function() {
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (isLight) {
+          document.documentElement.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'dark');
+          this.textContent = '☀';
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+          localStorage.setItem('theme', 'light');
+          this.textContent = '☾';
+        }
+      });
+    });
+  </script>
+
+  <script>
+    // Shared utility: build event annotations for Chart.js
+    async function loadEventAnnotations(chartMin, chartMax) {
+      const resp = await fetch('/api/events');
+      const events = await resp.json();
+      const annotations = {};
+      // Only annotate major financial events (amount >= $1000 or income/job type)
+      const MAJOR_TYPES = ['milestone', 'windfall', 'debt'];
+      events.forEach((ev, i) => {
+        if (ev.event_date < chartMin || ev.event_date > chartMax) return;
+        const isMajorType = MAJOR_TYPES.includes((ev.event_type || '').toLowerCase());
+        const isMajorAmount = Math.abs(ev.amount || 0) >= 1000;
+        if (!isMajorType && !isMajorAmount) return;
+        annotations[`event_${i}`] = {
+          type: 'line',
+          xMin: ev.event_date,
+          xMax: ev.event_date,
+          borderColor: ev.amount >= 0 ? 'rgba(52, 199, 89, 0.5)' : 'rgba(255, 69, 58, 0.5)',
+          borderWidth: 1,
+          borderDash: [4, 4],
+          label: {
+            display: true,
+            content: ev.label,
+            position: 'start',
+            font: { size: 10 },
+            color: '#888',
+            backgroundColor: 'transparent',
+          }
+        };
+      });
+      return annotations;
+    }
+
+    // Format currency
+    function fmt(n) {
+      if (n == null) return '--';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+    }
+
+    function fmtExact(n) {
+      if (n == null) return '--';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+    }
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

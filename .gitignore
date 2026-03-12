@@ -1,0 +1,7 @@
+.env
+data/finances.db
+imports/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

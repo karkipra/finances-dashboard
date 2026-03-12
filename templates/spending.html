@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Spending - Pratik Finances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Spending</h1>
+  <div class="period-btns" id="periodBtns">
+    <button class="btn-period" data-period="week">This Week</button>
+    <button class="btn-period active" data-period="month">This Month</button>
+    <button class="btn-period" data-period="3months">3 Months</button>
+    <button class="btn-period" data-period="custom">Custom</button>
+  </div>
+</div>
+
+<div id="customRange" class="custom-range hidden">
+  <label>From <input type="date" id="startDate" /></label>
+  <label>To <input type="date" id="endDate" /></label>
+  <button class="btn-primary" id="applyCustom">Apply</button>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <div class="card-title">By Category</div>
+    <canvas id="donutChart" height="280"></canvas>
+    <div id="totalSpend" class="total-spend"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Breakdown</div>
+    <table class="data-table" id="categoryTable">
+      <thead>
+        <tr><th>Category</th><th class="right">Amount</th><th class="right">%</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Transactions <span id="txnCount" class="badge"></span></div>
+  <input class="search-input" id="txnSearch" placeholder="Search transactions..." />
+  <table class="data-table" id="txnTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Account</th>
+        <th>Category</th>
+        <th class="right">Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let donutChart = null;
+let allTxns = [];
+let currentCategory = null;
+
+const COLORS = [
+  '#0a84ff','#30d158','#ff9f0a','#ff453a','#bf5af2',
+  '#64d2ff','#ffd60a','#ff6b6b','#4ecdc4','#45b7d1',
+  '#96ceb4','#ffeaa7','#dfe6e9','#a29bfe','#fd79a8'
+];
+
+async function load(period, start, end) {
+  let url = `/api/spending?period=${period}`;
+  if (period === 'custom') url += `&start=${start}&end=${end}`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  renderDonut(data.categories, data.total);
+  renderCategoryTable(data.categories, data.total);
+  allTxns = data.transactions;
+  currentCategory = null;
+  renderTxns(allTxns);
+}
+
+function renderDonut(cats, total) {
+  const ctx = document.getElementById('donutChart');
+  if (donutChart) donutChart.destroy();
+
+  if (!cats || cats.length === 0) {
+    ctx.parentElement.innerHTML = '<p class="empty-state chart-empty">No spending data for this period.</p>';
+    document.getElementById('totalSpend').textContent = '';
+    return;
+  }
+
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: cats.map(c => c.category || 'Uncategorized'),
+      datasets: [{
+        data: cats.map(c => c.total),
+        backgroundColor: cats.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}`
+          }
+        }
+      },
+      onClick: (e, elements) => {
+        if (!elements.length) {
+          currentCategory = null;
+          renderTxns(allTxns);
+          return;
+        }
+        const idx = elements[0].index;
+        currentCategory = cats[idx].category;
+        renderTxns(allTxns.filter(t => t.category === currentCategory));
+      }
+    }
+  });
+
+  document.getElementById('totalSpend').textContent = `Total: ${fmt(total)}`;
+}
+
+function renderCategoryTable(cats, total) {
+  const tbody = document.querySelector('#categoryTable tbody');
+  if (!cats || cats.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cats.map((c, i) => {
+    const pct = total > 0 ? ((c.total / total) * 100).toFixed(1) : '0.0';
+    const dot = `<span class="dot" style="background:${COLORS[i % COLORS.length]}"></span>`;
+    return `<tr class="cat-row" data-cat="${c.category}">
+      <td>${dot}${c.category || 'Uncategorized'}</td>
+      <td class="right">${fmtExact(c.total)}</td>
+      <td class="right">${pct}%</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.cat-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const cat = row.dataset.cat;
+      currentCategory = currentCategory === cat ? null : cat;
+      renderTxns(currentCategory ? allTxns.filter(t => t.category === currentCategory) : allTxns);
+      tbody.querySelectorAll('.cat-row').forEach(r => r.classList.remove('selected'));
+      if (currentCategory) row.classList.add('selected');
+    });
+  });
+}
+
+function renderTxns(txns) {
+  const search = document.getElementById('txnSearch').value.toLowerCase();
+  const filtered = search
+    ? txns.filter(t => t.description.toLowerCase().includes(search) || (t.category||'').toLowerCase().includes(search))
+    : txns;
+
+  document.getElementById('txnCount').textContent = filtered.length;
+  const tbody = document.querySelector('#txnTable tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No transactions</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(t => `
+    <tr>
+      <td class="mono">${t.date}</td>
+      <td>${t.description}</td>
+      <td class="muted">${t.account}</td>
+      <td><span class="tag">${t.category || 'Uncategorized'}</span></td>
+      <td class="right ${t.amount < 0 ? 'negative' : 'positive'}">${fmtExact(t.amount)}</td>
+    </tr>
+  `).join('');
+}
+
+// Period buttons
+document.querySelectorAll('.btn-period').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.btn-period').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const period = btn.dataset.period;
+    if (period === 'custom') {
+      document.getElementById('customRange').classList.remove('hidden');
+    } else {
+      document.getElementById('customRange').classList.add('hidden');
+      load(period);
+    }
+  });
+});
+
+document.getElementById('applyCustom').addEventListener('click', () => {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if (start && end) load('custom', start, end);
+});
+
+document.getElementById('txnSearch').addEventListener('input', () => renderTxns(allTxns));
+
+load('month');
+</script>
+{% endblock %}

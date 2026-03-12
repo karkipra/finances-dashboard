@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Events - Pratik Finances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Background Events</h1>
+</div>
+<p class="hint">These appear as markers on all charts. Add recurring items to <code>knowledge.yaml</code> for persistence, or use the form below for one-offs.</p>
+
+<div class="card">
+  <table class="data-table" id="eventsTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Label</th>
+        <th class="right">Amount</th>
+        <th>Recurrence</th>
+        <th>Notes</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="eventsBody">
+      {% if events %}
+        {% for ev in events %}
+        <tr data-id="{{ ev.id }}">
+          <td class="mono">{{ ev.event_date }}</td>
+          <td><span class="tag tag-{{ ev.event_type }}">{{ ev.event_type.replace('_', ' ') }}</span></td>
+          <td>{{ ev.label }}</td>
+          <td class="right {% if ev.amount and ev.amount < 0 %}negative{% elif ev.amount and ev.amount > 0 %}positive{% endif %}">
+            {% if ev.amount %}{{ "${:,.0f}".format(ev.amount) }}{% else %}--{% endif %}
+          </td>
+          <td class="muted">{{ ev.recurrence or 'none' }}</td>
+          <td class="muted">{{ ev.notes or '' }}</td>
+          <td>
+            <button class="btn-delete" data-id="{{ ev.id }}" title="Delete">x</button>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="7" class="empty-state">No events yet. Add them below or in knowledge.yaml.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title">Add Event</div>
+  <form id="addEventForm" class="event-form">
+    <div class="form-row">
+      <label>Date <input type="date" name="event_date" required /></label>
+      <label>Type
+        <select name="event_type" required>
+          <option value="income_change">Income Change</option>
+          <option value="annual_expense">Annual Expense</option>
+          <option value="subscription">Subscription</option>
+          <option value="one_off">One-off</option>
+        </select>
+      </label>
+      <label>Label <input type="text" name="label" placeholder="e.g. Car registration" required /></label>
+      <label>Amount ($) <input type="number" name="amount" step="0.01" placeholder="-385 or +500" /></label>
+      <label>Recurrence
+        <select name="recurrence">
+          <option value="none">None</option>
+          <option value="annual">Annual</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </label>
+      <label>Notes <input type="text" name="notes" placeholder="Optional" /></label>
+    </div>
+    <button type="submit" class="btn-primary">Save Event</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('addEventForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = Object.fromEntries(fd.entries());
+  if (payload.amount) payload.amount = parseFloat(payload.amount);
+  else delete payload.amount;
+
+  const resp = await fetch('/api/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (resp.ok) {
+    location.reload();
+  } else {
+    const err = await resp.json();
+    alert('Error: ' + (err.error || 'unknown'));
+  }
+});
+
+document.querySelectorAll('.btn-delete').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Delete this event?')) return;
+    const id = btn.dataset.id;
+    await fetch(`/api/events/${id}`, { method: 'DELETE' });
+    btn.closest('tr').remove();
+  });
+});
+</script>
+{% endblock %}

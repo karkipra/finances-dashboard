@@ -1,0 +1,65 @@
+# knowledge.yaml - Background financial events
+# Edit this file to record salary changes, annual bills, subscriptions, one-off events.
+# Run 'python ingest.py' after editing to sync to the dashboard.
+# All amounts: net (after tax). Negative = expense/outflow, positive = income/inflow.
+
+# Salary and income changes (monthly net take-home)
+income_changes:
+  - date: "2025-05-01"
+    label: "Pratik - Anthromind W-2 salary starts"
+    amount: 2552
+    notes: "Net monthly after tax. W-2 through Anthromind (co-founder)."
+  - date: "2025-01-01"
+    label: "Nastya paycheck"
+    amount: 3600
+    notes: "Net monthly after tax."
+
+# Annual / irregular large expenses
+annual_expenses:
+  - date: "2026-01-01"
+    label: "Aerial fitness - Q1"
+    amount: -250
+  - date: "2026-04-01"
+    label: "Aerial fitness - Q2"
+    amount: -250
+  - date: "2026-07-01"
+    label: "Aerial fitness - Q3"
+    amount: -250
+  - date: "2026-10-01"
+    label: "Aerial fitness - Q4"
+    amount: -250
+
+# Subscription / recurring changes (monthly impact on cash)
+# Note: BFSFCU car note $2,423 remaining as of Mar 2026, $1,010/month - paid off Apr 2026
+subscription_changes:
+  - date: "2025-06-01"
+    label: "Lending Club HYSA savings"
+    amount: -250
+    recurrence: monthly
+    notes: "Started $250/month Jun 2025"
+  - date: "2025-08-01"
+    label: "Lending Club HYSA savings increased"
+    amount: -500
+    recurrence: monthly
+    notes: "Increased to $500/month Aug 2025. 4.2% APY. Balance as of Mar 2026: $9,273.51"
+
+# One-off events (non-recurring)
+one_off_events:
+  - date: "2025-04-01"
+    label: "Nastya part-time salary (prof work)"
+    amount: 3000
+  - date: "2025-05-01"
+    label: "Unknown one-time expense"
+    amount: -2000
+  - date: "2025-06-01"
+    label: "Nastya part-time salary (prof work)"
+    amount: 1849
+  - date: "2025-11-01"
+    label: "Car registration"
+    amount: -600
+  - date: "2026-02-01"
+    label: "Nastya part-time salary (prof work)"
+    amount: 800
+  - date: "2026-04-01"
+    label: "Owed taxes"
+    amount: -1200

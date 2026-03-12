@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+{% block title %}Monthly Budget - Nastik Finances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Monthly Budget</h1>
+  <div class="month-nav" style="align-items:center;gap:8px">
+    <button class="btn-period" id="prevMonth">&#8249;</button>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:100px">
+      <span id="currentBadge" class="badge badge-green" style="display:none;margin-bottom:2px;font-size:10px">Current</span>
+      <span id="monthLabel" style="font-weight:600;font-size:15px;text-align:center"></span>
+    </div>
+    <button class="btn-period" id="nextMonth">&#8250;</button>
+  </div>
+  <span id="dataAsOf" style="font-size:12px;color:var(--muted)"></span>
+</div>
+
+<div id="preDataBanner" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.25);border-radius:8px;font-size:12px;color:var(--muted)">
+  Data collection started March 2026. Figures shown for earlier months are planning estimates only, not based on actual transactions.
+</div>
+
+<div class="budget-layout">
+
+  <!-- KPIs: Net cash + Invested -->
+  <div class="budget-kpis" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Net cash</div>
+      <div id="netCashRow"></div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Invested</div>
+      <div id="netInvestedRow"></div>
+    </div>
+  </div>
+
+  <!-- Income -->
+  <div class="budget-income card">
+    <div class="card-title">Income</div>
+    <table class="data-table" id="incomeTable">
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Lock -->
+  <div class="budget-lock" id="lockCard"></div>
+
+  <!-- Expenses -->
+  <div class="budget-expenses card" style="padding:14px 16px">
+    <div class="card-title" style="margin-bottom:4px">Expenses</div>
+    <table class="data-table" id="expenseTable">
+      <tbody></tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.editable-amt {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--muted);
+  padding-bottom: 1px;
+}
+.editable-amt:hover { color: var(--blue); border-color: var(--blue); }
+
+/* Compact expense table */
+#expenseTable td { padding: 5px 10px; font-size: 12px; }
+#expenseTable td:first-child { padding-left: 8px; }
+#incomeTable td { padding: 6px 10px; font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let year = 2026, month = 3;
+let _data = null;
+
+document.getElementById('prevMonth').addEventListener('click', () => {
+  month--; if (month < 1) { month = 12; year--; }
+  load();
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  month++; if (month > 12) { month = 1; year++; }
+  load();
+});
+
+const TODAY = new Date();
+const CURRENT_YEAR  = TODAY.getFullYear();
+const CURRENT_MONTH = TODAY.getMonth() + 1;
+
+async function load() {
+  document.getElementById('monthLabel').textContent = `${MONTHS[month-1]} ${year}`;
+  const isCurrent = year === CURRENT_YEAR && month === CURRENT_MONTH;
+  document.getElementById('currentBadge').style.display = isCurrent ? '' : 'none';
+  document.getElementById('monthLabel').style.color = isCurrent ? 'var(--blue)' : '';
+  const resp = await fetch(`/api/budget-plan?year=${year}&month=${month}`);
+  _data = await resp.json();
+  const asOf = document.getElementById('dataAsOf');
+  if (_data.latest_transaction_date) {
+    const d = new Date(_data.latest_transaction_date + 'T00:00:00');
+    const label = d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+    asOf.textContent = `data as of ${label}`;
+  } else {
+    asOf.textContent = 'no transaction data';
+  }
+  render(_data);
+}
+
+async function lockMonth() {
+  const ok = confirm(`Lock ${MONTHS[month-1]} ${year} budget?\n\nOnce locked, planned amounts can no longer be edited.`);
+  if (!ok) return;
+  await fetch('/api/lock-month', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({year, month})
+  });
+  load();
+}
+
+async function saveAmount(category, value) {
+  const amount = parseFloat(value);
+  if (isNaN(amount) || amount < 0) return;
+  await fetch('/api/budget-plan/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({year, month, category, amount})
+  });
+  load();
+}
+
+// ---- lock control ----
+
+function renderLockControl(locked, isCurrent) {
+  const el = document.getElementById('lockCard');
+  const isPast = !isCurrent && (year < CURRENT_YEAR || (year === CURRENT_YEAR && month < CURRENT_MONTH));
+  const isFuture = !isCurrent && !isPast;
+
+  if (locked) {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:20px;border:1px solid rgba(52,199,89,0.3);background:rgba(52,199,89,0.06)">
+      <div style="font-size:28px;margin-bottom:6px">&#128274;</div>
+      <div style="font-weight:600;color:var(--green);font-size:14px">${MONTHS[month-1]} ${year} locked</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Actuals tracking active</div>
+    </div>`;
+  } else if (isCurrent) {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:20px;cursor:pointer;border:1px solid var(--border)" onclick="lockMonth()">
+      <div style="font-size:28px;margin-bottom:6px">&#128275;</div>
+      <div style="font-weight:600;font-size:14px">Lock ${MONTHS[month-1]} Budget</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Commit the plan, activate actuals</div>
+    </div>`;
+  } else if (isPast) {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:20px;border:1px solid var(--border);opacity:0.5">
+      <div style="font-size:28px;margin-bottom:6px">&#9989;</div>
+      <div style="font-weight:600;font-size:14px;color:var(--muted)">Month finished</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${MONTHS[month-1]} ${year} is in the past</div>
+    </div>`;
+  } else {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:20px;border:1px solid var(--border);opacity:0.5">
+      <div style="font-size:28px;margin-bottom:6px">&#128336;</div>
+      <div style="font-weight:600;font-size:14px;color:var(--muted)">Upcoming month</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Plan now, lock on ${MONTHS[month-1]} 1</div>
+    </div>`;
+  }
+}
+
+// ---- row helpers ----
+
+function editableAmt(amount, category, editable) {
+  if (!editable) return fmtExact(amount);
+  return `<span class="editable-amt" onclick="startEdit(this,'${category}',${amount})" title="Click to edit">${fmtExact(amount)}</span>`;
+}
+
+function startEdit(el, category, current) {
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '0';
+  input.step = '1';
+  input.value = current;
+  input.style.cssText = 'width:80px;text-align:right;font-size:12px;background:var(--card-bg);color:var(--fg);border:1px solid var(--blue);border-radius:4px;padding:2px 4px';
+  input.onblur = () => saveAmount(category, input.value);
+  input.onkeydown = e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') load(); };
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function incomeRow(label, amount, category, editable, note) {
+  const muted = amount === 0;
+  const asterisk = note ? `<span style="color:var(--blue);font-size:10px;cursor:default" title="${note}"> *</span>` : '';
+  return `<tr>
+    <td style="${muted ? 'color:var(--muted)' : ''}">${label}${asterisk}</td>
+    <td class="right ${muted ? '' : 'positive'}" style="${muted ? 'color:var(--muted)' : ''}">${editableAmt(amount, category, editable)}</td>
+  </tr>`;
+}
+
+function subRow(label, planned, actual, showActuals, category, editable) {
+  if (!showActuals) {
+    return `<tr>
+      <td style="padding-left:20px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${label}</td>
+      <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${editableAmt(planned, category, editable)}</td>
+    </tr>`;
+  }
+  const diff = actual - planned;
+  const diffStr = actual === 0 ? '' : (diff >= 0 ? `+${fmtExact(diff)}` : `-${fmtExact(Math.abs(diff))}`);
+  const diffCls = actual === 0 ? '' : (diff <= 0 ? 'positive' : 'negative');
+  const actualStr = actual === 0 ? '<span style="color:var(--muted)">—</span>' : fmtExact(actual);
+  return `<tr>
+    <td style="padding-left:20px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${label}</td>
+    <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${fmtExact(planned)}</td>
+    <td class="right" style="padding-top:4px;padding-bottom:4px;font-size:12px">${actualStr}</td>
+    <td class="right ${diffCls}" style="padding-top:4px;padding-bottom:4px;font-size:11px">${diffStr}</td>
+  </tr>`;
+}
+
+function spendingTotalRow(label, planned, actual, showActuals) {
+  if (!showActuals) {
+    return `<tr style="border-top:1px solid var(--border);font-weight:600">
+      <td>${label}</td>
+      <td class="right negative">${fmtExact(planned)}</td>
+    </tr>`;
+  }
+  const diff = actual - planned;
+  const diffStr = diff >= 0 ? `+${fmtExact(diff)}` : `-${fmtExact(Math.abs(diff))}`;
+  const diffCls = diff <= 0 ? 'positive' : 'negative';
+  return `<tr style="border-top:1px solid var(--border);font-weight:600">
+    <td>${label}</td>
+    <td class="right negative">${fmtExact(planned)}</td>
+    <td class="right negative">${fmtExact(actual)}</td>
+    <td class="right ${diffCls}" style="font-size:12px">${diffStr}</td>
+  </tr>`;
+}
+
+function savingsRow(label, planned, actual, showActuals, category, editable) {
+  if (!showActuals) {
+    return `<tr style="background:rgba(52,199,89,0.08)">
+      <td style="padding-left:20px;padding-top:6px;padding-bottom:6px;font-size:13px">$ ${label}</td>
+      <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500">${editableAmt(planned, category, editable)}</td>
+    </tr>`;
+  }
+  const actualStr = actual === 0 ? '<span style="color:var(--muted)">—</span>' : fmtExact(actual);
+  return `<tr style="background:rgba(52,199,89,0.08)">
+    <td style="padding-left:20px;padding-top:6px;padding-bottom:6px;font-size:13px">$ ${label}</td>
+    <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500">${fmtExact(planned)}</td>
+    <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500">${actualStr}</td>
+    <td></td>
+  </tr>`;
+}
+
+function sectionLabel(text, extra, showActuals, actualHeader) {
+  const spanText = extra ? `<span style="font-weight:400;margin-left:6px">${extra}</span>` : '';
+  if (!showActuals) {
+    return `<tr>
+      <td colspan="2" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:6px;padding-bottom:2px;border-bottom:none">${text}${spanText}</td>
+    </tr>`;
+  }
+  return `<tr>
+    <td style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:10px;padding-bottom:3px;border-bottom:none">${text}${spanText}</td>
+    <td class="right" style="font-size:10px;color:var(--muted);padding-top:10px;padding-bottom:3px;border-bottom:none">Planned</td>
+    <td class="right" style="font-size:10px;color:var(--muted);padding-top:10px;padding-bottom:3px;border-bottom:none">${actualHeader}</td>
+    <td class="right" style="font-size:10px;color:var(--muted);padding-top:10px;padding-bottom:3px;border-bottom:none">Diff</td>
+  </tr>`;
+}
+
+function dividerRow(label, planned, actual, cls, showActuals) {
+  if (!showActuals) {
+    return `<tr style="border-top:1px solid var(--border);font-weight:600">
+      <td>${label}</td>
+      <td class="right ${cls}">${fmtExact(planned)}</td>
+    </tr>`;
+  }
+  return `<tr style="border-top:1px solid var(--border);font-weight:600">
+    <td>${label}</td>
+    <td class="right ${cls}">${fmtExact(planned)}</td>
+    <td class="right ${cls}">${fmtExact(actual)}</td>
+    <td></td>
+  </tr>`;
+}
+
+// ---- sub-cat definitions ----
+
+const SUB_CATS = [
+  { label: 'Rent',            key: 'expenses_rent' },
+  { label: 'Groceries',       key: 'expenses_groceries' },
+  { label: 'Dining / takeout',key: 'expenses_dining' },
+  { label: 'Car loan',        key: 'expenses_car_loan' },
+  { label: 'Car insurance',   key: 'expenses_car_insurance' },
+  { label: 'EV charging',     key: 'expenses_ev_charging' },
+  { label: 'Internet',        key: 'expenses_internet' },
+  { label: 'Subscriptions',   key: 'expenses_subscriptions' },
+  { label: 'Healthcare',      key: 'expenses_healthcare' },
+  { label: 'Pets',            key: 'expenses_pets' },
+  { label: 'Personal / misc', key: 'expenses_personal_misc' },
+  { label: 'Fitness',         key: 'expenses_fitness' },
+  { label: 'Buffer / misc',   key: 'expenses_buffer_misc' },
+];
+
+// ---- render ----
+
+function render(data) {
+  const plan = data.plan || {};
+  const actuals = data.actuals_by_category || {};
+  const locked = data.locked || false;
+  const isCurrent = data.is_current_month || false;
+  // Actuals disabled until clean transaction data exists (CC + investment txns polluting results)
+  const hasActuals = false;
+  const actualHeader = isCurrent ? 'So far' : 'Actual';
+  const editable = !locked;
+
+  renderLockControl(locked, isCurrent);
+
+  // Pre-data disclaimer banner
+  const isBeforeMar2026 = (year < 2026) || (year === 2026 && month < 3);
+  document.getElementById('preDataBanner').style.display = isBeforeMar2026 ? 'block' : 'none';
+
+  // --- Income ---
+  const incomeItems = [
+    { label: 'Nastya paycheck (post-tax)', amount: plan.nastya_income?.amount   || 0, category: 'nastya_income',   note: plan.nastya_income?.notes   || null },
+    { label: 'Pratik paycheck (post-tax)', amount: plan.pratik_income?.amount   || 0, category: 'pratik_income',   note: plan.pratik_income?.notes   || null },
+    { label: 'One-time income',            amount: plan.one_time_income?.amount || 0, category: 'one_time_income', note: plan.one_time_income?.notes || null },
+  ];
+  const totalIncomePlanned = incomeItems.reduce((s, r) => s + r.amount, 0);
+  const totalIncomeActual = data.actual_income_total || 0;
+
+  const iTbody = document.querySelector('#incomeTable tbody');
+  let iHtml = incomeItems.map(r => incomeRow(r.label, r.amount, r.category, editable, r.note)).join('');
+  const footnotes = incomeItems.filter(r => r.note).map(r => `* ${r.note}`);
+  if (footnotes.length) iHtml += `<tr><td colspan="2" style="font-size:10px;color:var(--muted);padding-top:6px">${footnotes.join(' &nbsp; ')}</td></tr>`;
+  if (hasActuals && totalIncomeActual > 0) {
+    iHtml += `<tr style="border-top:1px solid var(--border);font-weight:600">
+      <td>Total income</td>
+      <td class="right positive">${fmtExact(totalIncomePlanned)}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--muted);font-size:12px;padding-left:20px">${actualHeader}</td>
+      <td class="right positive" style="font-size:12px">${fmtExact(totalIncomeActual)}</td>
+    </tr>`;
+  } else {
+    iHtml += dividerRow('Total income', totalIncomePlanned, 0, 'positive', false);
+  }
+  iTbody.innerHTML = iHtml;
+
+  // --- Expenses: Spending zone ---
+  const subItems = SUB_CATS
+    .map(c => ({
+      label:   c.label,
+      key:     c.key,
+      planned: Math.abs(plan[c.key]?.amount || 0),
+      actual:  actuals[c.key] || 0,
+    }))
+    .filter(r => r.planned > 0);
+
+  const monthlyExpTotal = Math.abs(plan.monthly_expenses?.amount || 0);
+  const spendingPlanned = subItems.length
+    ? subItems.reduce((s, r) => s + r.planned, 0)
+    : monthlyExpTotal;
+  const spendingActual = subItems.reduce((s, r) => s + r.actual, 0)
+    + (actuals['expenses_buffer_misc'] || 0);
+
+  // --- Expenses: Savings zone ---
+  const hysa    = Math.abs(plan.hysa?.amount || 0);
+  const roth    = Math.abs(plan.roth?.amount || 0);
+  const hysaActual = actuals['hysa'] || 0;
+  const rothActual = actuals['roth'] || 0;
+  const savingsTotal = hysa + roth;
+  const savingsActual = hysaActual + rothActual;
+
+  // --- Expenses: One-time ---
+  const oneTime = Math.abs(plan.one_time_expense?.amount || 0);
+  const oneTimeNote = plan.one_time_expense?.notes || null;
+
+  const totalExpensePlanned = spendingPlanned + savingsTotal + oneTime;
+  const totalExpenseActual = spendingActual + savingsActual;
+  const net = totalIncomePlanned - totalExpensePlanned;
+
+  // --- Build expense table ---
+  const eTbody = document.querySelector('#expenseTable tbody');
+  let expHtml = '';
+
+  // Spending
+  if (subItems.length) {
+    expHtml += sectionLabel('Spending', null, hasActuals, actualHeader);
+    expHtml += subItems.map(r => subRow(r.label, r.planned, r.actual, hasActuals, r.key, editable)).join('');
+    expHtml += spendingTotalRow('Spending total', spendingPlanned, spendingActual, hasActuals);
+  } else if (spendingPlanned > 0) {
+    expHtml += dividerRow('Monthly expenses', spendingPlanned, spendingActual, 'negative', hasActuals);
+  }
+
+  // Savings
+  if (savingsTotal > 0) {
+    expHtml += sectionLabel('Savings', '— building wealth', hasActuals, actualHeader);
+    if (hysa > 0) expHtml += savingsRow('HYSA', hysa, hysaActual, hasActuals, 'hysa', editable);
+    if (roth > 0) expHtml += savingsRow('Roth IRA', roth, rothActual, hasActuals, 'roth', editable);
+    if (!hasActuals) {
+      expHtml += `<tr style="background:rgba(52,199,89,0.05);border-top:1px solid rgba(52,199,89,0.2);font-weight:600">
+        <td style="padding-top:6px;padding-bottom:6px">Savings total</td>
+        <td class="right positive" style="padding-top:6px;padding-bottom:6px">${fmtExact(savingsTotal)}</td>
+      </tr>`;
+    } else {
+      expHtml += `<tr style="background:rgba(52,199,89,0.05);border-top:1px solid rgba(52,199,89,0.2);font-weight:600">
+        <td style="padding-top:6px;padding-bottom:6px">Savings total</td>
+        <td class="right positive" style="padding-top:6px;padding-bottom:6px">${fmtExact(savingsTotal)}</td>
+        <td class="right positive" style="padding-top:6px;padding-bottom:6px">${savingsActual > 0 ? fmtExact(savingsActual) : '<span style="color:var(--muted)">—</span>'}</td>
+        <td></td>
+      </tr>`;
+    }
+  }
+
+  // One-time expense
+  if (oneTime > 0) {
+    const cols = hasActuals ? ' colspan="1"' : ' colspan="2"';
+    expHtml += sectionLabel('One-time', null, false, actualHeader);
+    const oneTimeLabel = oneTimeNote
+      ? `One-time expense <span style="font-weight:400;color:var(--muted);font-size:11px">(${oneTimeNote})</span>`
+      : 'One-time expense';
+    if (!hasActuals) {
+      expHtml += `<tr>
+        <td style="padding-left:20px;font-size:13px;color:var(--muted)">${oneTimeLabel}</td>
+        <td class="right negative" style="font-size:13px">${fmtExact(oneTime)}</td>
+      </tr>`;
+    } else {
+      expHtml += `<tr>
+        <td style="padding-left:20px;font-size:13px;color:var(--muted)">${oneTimeLabel}</td>
+        <td class="right negative" style="font-size:13px">${fmtExact(oneTime)}</td>
+        <td></td><td></td>
+      </tr>`;
+    }
+  }
+
+  // Total outflow
+  if (totalExpensePlanned > 0) {
+    expHtml += dividerRow('Total outflow', totalExpensePlanned, totalExpenseActual, 'negative', hasActuals);
+  }
+
+  eTbody.innerHTML = expHtml || '<tr><td colspan="2" class="empty-state">No planned expenses.</td></tr>';
+
+  // --- Net cash (income minus spending and one-time, excluding savings) ---
+  const netCash = totalIncomePlanned - totalExpensePlanned;
+  const netCashCls = netCash >= 0 ? 'positive' : 'negative';
+  const projChecking = data.projected_checking != null ? data.projected_checking : null;
+  document.getElementById('netCashRow').innerHTML = `
+    <div class="kpi-main ${netCashCls}" style="font-size:20px">${netCash >= 0 ? '+' : ''}${fmtExact(netCash)}</div>
+    <div class="kpi-sub" style="margin-top:4px;font-size:11px">lands in checking</div>
+    ${projChecking != null ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">~${fmt(projChecking)} in checking</div>` : ''}`;
+
+  // --- Invested (HYSA + Roth) ---
+  const investedCls = savingsTotal > 0 ? 'positive' : '';
+  document.getElementById('netInvestedRow').innerHTML = `
+    <div class="kpi-main ${investedCls}" style="font-size:20px">${fmtExact(savingsTotal)}</div>
+    <div class="kpi-sub" style="margin-top:4px;font-size:11px">HYSA + Roth</div>`;
+}
+
+load();
+</script>
+{% endblock %}

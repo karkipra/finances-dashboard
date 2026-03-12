@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Forecast - Pratik Finances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">2-Year Forecast</h1>
+</div>
+
+<div class="card" id="assumptionsCard">
+  <div class="card-title">Assumptions <span class="muted">(based on last 90 days)</span></div>
+  <div id="assumptions" class="assumptions-grid">Loading...</div>
+</div>
+
+<div class="card">
+  <canvas id="forecastChart" height="90"></canvas>
+</div>
+
+<p class="hint">Confidence band = base monthly spend +/- 15%. Future events from knowledge.yaml are applied as one-time shifts.</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function init() {
+  const resp = await fetch('/api/forecast');
+  const data = await resp.json();
+  const { points, assumptions } = data;
+
+  renderAssumptions(assumptions);
+
+  if (!points || points.length === 0) {
+    document.getElementById('forecastChart').parentElement.innerHTML =
+      '<p class="empty-state chart-empty">Not enough historical data to project. Import at least one CSV first.</p>';
+    return;
+  }
+
+  const labels = points.map(p => p.date);
+  const base = points.map(p => p.base_nw);
+  const low = points.map(p => p.low_nw);
+  const high = points.map(p => p.high_nw);
+
+  // Get future events for markers
+  const evResp = await fetch('/api/events?future_only=true');
+  const events = await evResp.json();
+  const annotations = {};
+  events.forEach((ev, i) => {
+    annotations[`ev_${i}`] = {
+      type: 'line',
+      xMin: ev.event_date,
+      xMax: ev.event_date,
+      borderColor: (ev.amount || 0) >= 0 ? 'rgba(52,199,89,0.6)' : 'rgba(255,69,58,0.6)',
+      borderWidth: 1.5,
+      borderDash: [4, 4],
+      label: {
+        display: true,
+        content: ev.label,
+        position: 'start',
+        font: { size: 10 },
+        color: '#888',
+        backgroundColor: 'transparent',
+      }
+    };
+  });
+
+  new Chart(document.getElementById('forecastChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Base Case',
+          data: base,
+          borderColor: '#0a84ff',
+          backgroundColor: 'rgba(10,132,255,0.05)',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: 'High (spend -15%)',
+          data: high,
+          borderColor: 'rgba(52,199,89,0.5)',
+          backgroundColor: 'rgba(52,199,89,0.08)',
+          fill: '+1',
+          tension: 0.3,
+          pointRadius: 0,
+          borderDash: [3, 3],
+          borderWidth: 1,
+        },
+        {
+          label: 'Low (spend +15%)',
+          data: low,
+          borderColor: 'rgba(255,69,58,0.5)',
+          backgroundColor: 'rgba(255,69,58,0.08)',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          borderDash: [3, 3],
+          borderWidth: 1,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        annotation: { annotations },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            maxTicksLimit: 12,
+            maxRotation: 45,
+            minRotation: 45,
+            callback: (val, idx, ticks) => {
+              const label = ticks[idx]?.label;
+              return label ? label.slice(0, 7) : '';
+            }
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { callback: v => fmt(v) }
+        }
+      }
+    }
+  });
+}
+
+function renderAssumptions(a) {
+  const el = document.getElementById('assumptions');
+  if (!a) { el.textContent = 'No data.'; return; }
+  el.innerHTML = `
+    <div class="assump-item"><span class="assump-label">Monthly income (avg)</span><span class="assump-val positive">${fmt(a.avg_monthly_income)}</span></div>
+    <div class="assump-item"><span class="assump-label">Monthly spend (avg)</span><span class="assump-val negative">${fmt(a.avg_monthly_spend)}</span></div>
+    <div class="assump-item"><span class="assump-label">Net monthly delta</span><span class="assump-val ${a.base_monthly_delta >= 0 ? 'positive' : 'negative'}">${fmt(a.base_monthly_delta)}</span></div>
+    <div class="assump-item"><span class="assump-label">Confidence band</span><span class="assump-val">${fmt(a.volatility_band)}/mo</span></div>
+    <div class="assump-item"><span class="assump-label">Starting net worth</span><span class="assump-val">${fmt(a.starting_net_worth)}</span></div>
+    <div class="assump-item"><span class="assump-label">Future events</span><span class="assump-val">${a.future_event_count}</span></div>
+  `;
+}
+
+init();
+</script>
+{% endblock %}
