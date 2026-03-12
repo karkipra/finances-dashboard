@@ -13,8 +13,14 @@ cd pratik-finances-dashboard
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 python seed_budget.py   # one-time: seeds 2025-2026 budget plan
-python app.py           # visit http://localhost:5000
+python app.py           # visit http://localhost:5000 or http://192.168.1.133:5000
 ```
+
+**To start the server (daily use):**
+```bash
+python app.py
+```
+Binds to `0.0.0.0` — accessible at `http://192.168.1.133:5000` from any device on home WiFi.
 
 Requires a `.env` file:
 ```
@@ -319,6 +325,85 @@ For angel investments with no vesting: set `cliff_date = purchase_date`, `cliff_
 - [ ] Projected checking balance: currently uses planned amounts only — switch to blend actual + remaining planned once actuals are re-enabled
 - [ ] Add fitness ($250) back to Apr/Jul/Oct 2026 quarter payments once confirmed Nastya is still doing aerial
 - [ ] Consider adding a "notes" tooltip on budget rows so one-time items can show context inline (e.g. "taxes owed - 2 of 4")
+
+---
+
+## Planned Features
+
+### 1. Retirement Projector
+New card at the bottom of the Net Worth page.
+- Takes current retirement balances + monthly Roth contributions + 7% annual return assumption
+- Projects year-by-year to ages 55, 60, 65 with a line chart and milestone markers ($500K, $1M, $2M)
+- Useful immediately - no transaction history needed
+- Files: `config.py` (birth years), `forecast.py` (`project_retirement()`), `app.py` (`/api/retirement-projection`), `net_worth.html`
+
+### 2. Goals Tracker
+New `/goals` page, added to navbar.
+- Fully flexible: user-defined goals (emergency fund, travel, kids fund, etc.)
+- Each goal: emoji, name, target amount, optional target date, progress bar, months-to-completion
+- Manual balance updates (you set current amount - not auto-synced to transactions)
+- Pre-seeded with: Emergency Fund ($30K target)
+- New DB table: `goals` (id, name, emoji, target_amount, current_amount, target_date, monthly_contribution, notes)
+- Files: `storage.py`, `app.py` (CRUD routes), `templates/goals.html`, `templates/base.html` (navbar)
+
+### 3. Spending Trends
+Enhance the existing `/spending` page.
+- Category-by-category: budget plan vs. last month vs. 3-month rolling average + trend arrows
+- Bar chart: monthly total spend colored by over/under budget
+- Auto-gated: shows "--" until 2+ months of real transaction data exists
+- Files: `storage.py` (`get_spending_trends()`), `app.py`, `templates/spending.html`
+
+**Build order:** Retirement projector → Goals tracker → Spending trends (needs data)
+
+---
+
+## Forecasting Model (Planned)
+
+The goal is a model that automatically gets smarter as real transaction data accumulates.
+No manual tuning needed - it blends the budget plan with actuals over time.
+
+### Auto-Blending: Plan vs. Actuals
+
+```
+weight = min(months_of_data / 6, 1.0)
+forecast_spend[cat] = plan[cat] * (1 - weight) + actual_avg[cat] * weight
+```
+
+- 0-2 months: plan-driven
+- 3-5 months: blending
+- 6+ months: fully actuals-driven
+
+### What the Forecast Page Will Show
+
+1. **Named scenario toggle** - pill buttons to switch between:
+   - Base, Lean (Nastya PhD gap), Pratik Raise, Nastya Stipend, House
+   - Each scenario overrides specific income/expense lines from a start month
+2. **Net worth projection** - 24-month line chart with confidence bands, updates per scenario
+3. **FIRE tracker** - target ($), current invested assets, months away, projected date
+   - FIRE number = avg monthly spend x 12 x 25 (4% rule)
+4. **Monthly cash flow** - bar chart, income vs. spend per month
+5. **Account balance projections** - Checking / HYSA (4.2% APY + $500/mo) / Roth (7% return)
+6. **Category spend trends** - table: plan | 3mo actual avg | trend arrow | forecast
+7. **Data confidence banner** - tells you how much the model is plan- vs. actuals-weighted
+
+### Files to Build/Modify
+
+- `forecast.py` - add `get_category_trends()`, `blend_plan_actuals()`, `project_account_balances()`, `get_fire_number()`, `generate_forecast_v2(scenario=None)`
+- `config.py` - add `FORECAST_SCENARIOS` list of override dicts
+- `app.py` - add `/api/forecast/v2?scenario=` and `/api/forecast/scenarios` endpoints
+- `templates/forecast.html` - overhaul with all 7 sections above
+
+### Build Order
+
+1. Core forecast engine + scenarios in `forecast.py` + `config.py`
+2. API endpoints in `app.py`
+3. Scenario pills + net worth chart + confidence banner
+4. Account projections
+5. FIRE tracker
+6. Category trends table
+7. Cash flow bar chart
+
+Activate once 3+ months of real Empower data exists (target: ~Jun 2026).
 
 ---
 
