@@ -50,46 +50,86 @@ ACCOUNT_ALIASES = {
 # Checked against transaction description first, then category. First match wins.
 # Unmatched expenses fall through to expenses_buffer_misc.
 BUDGET_CATEGORY_RULES = {
-    # Rent
+    # Rent (includes renters insurance)
+    "uc santa barbara":   "expenses_rent",
+    "state farm":         "expenses_rent",
     "rent":               "expenses_rent",
     "apartment":          "expenses_rent",
     # Groceries
     "whole foods":        "expenses_groceries",
     "trader joe":         "expenses_groceries",
     "safeway":            "expenses_groceries",
+    "albertsons":         "expenses_groceries",
+    "vons":               "expenses_groceries",
+    "olive hill":         "expenses_groceries",
+    "indo china":         "expenses_groceries",
     "costco":             "expenses_groceries",
     "grocery":            "expenses_groceries",
     "supermarket":        "expenses_groceries",
     # Dining
     "doordash":           "expenses_dining",
     "uber eats":          "expenses_dining",
+    "tst*":               "expenses_dining",
+    "ls drift":           "expenses_dining",
+    "hilton":             "expenses_dining",
     "restaurant":         "expenses_dining",
     "dining":             "expenses_dining",
-    # Car insurance
+    # Car insurance — must come before plain "tesla" rule
     "tesla insurance":    "expenses_car_insurance",
     # EV charging
     "tesla supercharger": "expenses_ev_charging",
+    "chargepoint":        "expenses_ev_charging",
     "charging":           "expenses_ev_charging",
-    # Internet
+    "tesla":              "expenses_ev_charging",
+    # Internet (no generic "internet" keyword - banks use it for wire transfers)
+    "at&t":               "expenses_internet",
     "xfinity":            "expenses_internet",
     "comcast":            "expenses_internet",
-    "internet":           "expenses_internet",
+    # Entertainment (movies, plays, theaters)
+    "metropolitan theatres": "expenses_entertainment",
+    "garvin theatre":     "expenses_entertainment",
+    "ucsb assoc":         "expenses_entertainment",
+    "sbiff":              "expenses_entertainment",
+    "theatre":            "expenses_entertainment",
+    "theater":            "expenses_entertainment",
+    "cinema":             "expenses_entertainment",
     # Subscriptions
     "youtube":            "expenses_subscriptions",
     "spotify":            "expenses_subscriptions",
     "netflix":            "expenses_subscriptions",
+    "playstation":        "expenses_subscriptions",
+    "overleaf":           "expenses_subscriptions",
+    "hbomax":             "expenses_subscriptions",
+    "hbo max":            "expenses_subscriptions",
     # Healthcare
+    "zion healthshare":   "expenses_healthcare",
+    "dental insurance":   "expenses_healthcare",
+    "musely":             "expenses_healthcare",
     "kaiser":             "expenses_healthcare",
     "pharmacy":           "expenses_healthcare",
     "medical":            "expenses_healthcare",
     # Pets
+    "catandbirds":        "expenses_pets",
+    "cat and bird":       "expenses_pets",
+    "chewy":              "expenses_pets",
+    "embrace pet":        "expenses_pets",
     "petco":              "expenses_pets",
     "petsmart":           "expenses_pets",
     "banfield":           "expenses_pets",
     "vet":                "expenses_pets",
     # Fitness
+    "katelyn carano":     "expenses_fitness",
     "aerial":             "expenses_fitness",
     "gym":                "expenses_fitness",
+    # Car loan
+    "to principal":       "expenses_car_loan",
+    # Nastya gifts / personal shopping
+    "nastya gift":        "expenses_nastya_gifts",
+    "alpha thrift":       "expenses_nastya_gifts",
+    "spanx":              "expenses_nastya_gifts",
+    "lingerie":           "expenses_nastya_gifts",
+    "marshalls":          "expenses_nastya_gifts",
+    "sephora":            "expenses_nastya_gifts",
     # Personal / misc
     "amazon":             "expenses_personal_misc",
     "target":             "expenses_personal_misc",
@@ -98,6 +138,7 @@ BUDGET_CATEGORY_RULES = {
     # Savings (for HYSA/Roth contributions appearing in bank transactions)
     "hysa":               "hysa",
     "high yield":         "hysa",
+    "lendingclub":        "hysa",
     "lending club":       "hysa",
     "roth":               "roth",
     "vanguard":           "roth",

@@ -190,7 +190,9 @@ def api_budget_plan():
     }
     status = storage.get_month_status(year, month)
     data["locked"] = status["locked"]
-    data["actuals_by_category"] = storage.get_actuals_by_budget_category(year, month)
+    actuals = storage.get_actuals_by_budget_category(year, month)
+    data["actuals_by_category"] = actuals
+    data["has_actuals"] = any(v > 0 for v in actuals.values())
     data["actual_income_total"] = storage.get_actual_income_total(year, month)
     data["is_current_month"] = (year == today.year and month == today.month)
     data["latest_transaction_date"] = storage.get_latest_transaction_date()
@@ -243,6 +245,21 @@ def api_budget_target():
     if not category:
         return jsonify({"error": "category required"}), 400
     storage.set_budget_target(category, target)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/budget-notes")
+def api_budget_notes():
+    today = date.today()
+    year = request.args.get("year", today.year, type=int)
+    month = request.args.get("month", today.month, type=int)
+    return jsonify(storage.get_budget_notes(year, month))
+
+
+@app.route("/api/budget-notes", methods=["POST"])
+def api_save_budget_note():
+    data = request.get_json()
+    storage.save_budget_note(data["year"], data["month"], data["category"], data.get("note", ""))
     return jsonify({"status": "ok"})
 
 

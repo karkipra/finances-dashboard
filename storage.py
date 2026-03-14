@@ -93,6 +93,14 @@ def init_db():
             PRIMARY KEY (year, month)
         );
 
+        CREATE TABLE IF NOT EXISTS budget_actuals_notes (
+            year     INTEGER NOT NULL,
+            month    INTEGER NOT NULL,
+            category TEXT NOT NULL,
+            note     TEXT,
+            PRIMARY KEY (year, month, category)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_txn_date      ON transactions(date);
         CREATE INDEX IF NOT EXISTS idx_txn_category  ON transactions(category);
         CREATE INDEX IF NOT EXISTS idx_balances_date ON account_balances(snapshot_date);
@@ -544,6 +552,7 @@ def get_actuals_by_budget_category(year, month):
     Returns {budget_cat: total_spent} where total_spent is a positive number.
     Unmatched expenses go to expenses_buffer_misc.
     Income transactions (amount > 0) skipped.
+    CC payment rows and investment/retirement account transactions are excluded.
     """
     import calendar
     last_day = calendar.monthrange(year, month)[1]
@@ -552,18 +561,32 @@ def get_actuals_by_budget_category(year, month):
 
     conn = get_conn()
     rows = conn.execute(
-        "SELECT description, category, amount FROM transactions WHERE date>=? AND date<=? AND amount<0",
+        "SELECT description, category, amount, account FROM transactions WHERE date>=? AND date<=? AND amount<0",
         (start, end)
     ).fetchall()
     conn.close()
+
+    # Skip CC payment rows from checking account (double-counts the actual charge on the CC)
+    SKIP_CATS = {"credit card payments", "securities trades", "investment income"}
+    # Skip transactions from investment/retirement accounts (not real spending)
+    INVEST_ACCT_KEYS = (
+        "roth ira", "brokerage", "401(k)", "401k",
+        "designated beneficiary", "equity awards", "google llc 401",
+    )
 
     rules = config.BUDGET_CATEGORY_RULES
     totals = {}
 
     for row in rows:
         desc = (row["description"] or "").lower()
-        cat = (row["category"] or "").lower()
+        cat  = (row["category"]    or "").lower()
+        acct = (row["account"]     or "").lower()
         spent = abs(row["amount"])
+
+        if cat in SKIP_CATS:
+            continue
+        if any(kw in acct for kw in INVEST_ACCT_KEYS):
+            continue
 
         matched = None
         for keyword, budget_cat in rules.items():
@@ -575,6 +598,9 @@ def get_actuals_by_budget_category(year, month):
                 if keyword in cat:
                     matched = budget_cat
                     break
+        # Skip generic transfers that didn't match a savings/spending keyword
+        if matched is None and cat == "transfers":
+            continue
         if matched is None:
             matched = "expenses_buffer_misc"
 
@@ -583,19 +609,72 @@ def get_actuals_by_budget_category(year, month):
     return totals
 
 
+def get_budget_notes(year, month):
+    """Returns {category: note} for the given month."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT category, note FROM budget_actuals_notes WHERE year=? AND month=?",
+        (year, month)
+    ).fetchall()
+    conn.close()
+    return {r["category"]: r["note"] for r in rows}
+
+
+def save_budget_note(year, month, category, note):
+    conn = get_conn()
+    if note:
+        conn.execute(
+            """INSERT INTO budget_actuals_notes (year, month, category, note)
+               VALUES (?,?,?,?)
+               ON CONFLICT(year, month, category) DO UPDATE SET note=excluded.note""",
+            (year, month, category, note)
+        )
+    else:
+        conn.execute(
+            "DELETE FROM budget_actuals_notes WHERE year=? AND month=? AND category=?",
+            (year, month, category)
+        )
+    conn.commit()
+    conn.close()
+
+
 def get_actual_income_total(year, month):
-    """Sum of positive-amount transactions for the month."""
+    """
+    Sum of real income deposits for the month.
+    Excludes: CC payment credits, investment/retirement account transactions,
+    and plain transfers (Roth contributions, HYSA sweeps, etc.).
+    """
     import calendar
     last_day = calendar.monthrange(year, month)[1]
     start = f"{year}-{month:02d}-01"
     end = f"{year}-{month:02d}-{last_day:02d}"
+
+    SKIP_CATS = {"credit card payments", "securities trades", "investment income"}
+    INVEST_ACCT_KEYS = (
+        "roth ira", "brokerage", "401(k)", "401k",
+        "designated beneficiary", "equity awards", "google llc 401",
+    )
+
     conn = get_conn()
-    row = conn.execute(
-        "SELECT COALESCE(SUM(amount),0) as t FROM transactions WHERE amount>0 AND date>=? AND date<=?",
+    rows = conn.execute(
+        "SELECT amount, category, account FROM transactions WHERE amount>0 AND date>=? AND date<=?",
         (start, end)
-    ).fetchone()
+    ).fetchall()
     conn.close()
-    return round(row["t"], 2)
+
+    total = 0.0
+    for row in rows:
+        cat  = (row["category"] or "").lower()
+        acct = (row["account"]  or "").lower()
+        if cat in SKIP_CATS:
+            continue
+        if any(kw in acct for kw in INVEST_ACCT_KEYS):
+            continue
+        if cat == "transfers":
+            continue
+        total += row["amount"]
+
+    return round(total, 2)
 
 
 def get_budget_vs_actual(year, month):

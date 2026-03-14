@@ -70,12 +70,16 @@ def _classify_account_type(account_name, empower_type=None):
 
 
 def _detect_file_type(headers):
-    """Return 'transactions', 'balances', 'cc_transactions', or 'unknown'."""
+    """Return 'transactions', 'balances', 'cc_transactions', 'citi_transactions', 'apple_transactions', or 'unknown'."""
     lower = {h.lower().strip() for h in headers}
     if TRANSACTION_REQUIRED.issubset(lower):
         return "transactions"
     if BALANCE_REQUIRED.issubset(lower):
         return "balances"
+    if _is_citi_csv(lower):
+        return "citi_transactions"
+    if _is_apple_card_csv(lower):
+        return "apple_transactions"
     if _is_cc_csv(lower):
         return "cc_transactions"
     return "unknown"
@@ -88,6 +92,14 @@ def _is_cc_csv(lower_headers):
     has_amount = "amount" in lower_headers
     no_account = "account" not in lower_headers
     return has_date and has_desc and has_amount and no_account
+
+def _is_citi_csv(lower_headers):
+    """Detect Citi card format: has debit + credit + member name columns."""
+    return "debit" in lower_headers and "credit" in lower_headers and "member name" in lower_headers
+
+def _is_apple_card_csv(lower_headers):
+    """Detect Apple Card format: has 'amount (usd)' and 'clearing date' columns."""
+    return "amount (usd)" in lower_headers and "clearing date" in lower_headers
 
 
 def _normalize_date(raw):
@@ -125,9 +137,14 @@ def parse_file(filepath):
         snap_date = _extract_date_from_filename(path) or date.today().isoformat()
         return "balances", _parse_balances(rows, headers, snap_date)
     elif file_type == "cc_transactions":
-        # Infer account name from filename (e.g. amex_march.csv -> "Amex")
         account_name = _infer_cc_account_name(path)
         return "transactions", _parse_cc_transactions(rows, headers, account_name)
+    elif file_type == "citi_transactions":
+        account_name = _infer_cc_account_name(path)
+        return "transactions", _parse_citi_transactions(rows, headers, account_name)
+    elif file_type == "apple_transactions":
+        account_name = _infer_cc_account_name(path)
+        return "transactions", _parse_apple_transactions(rows, headers, account_name)
     else:
         print(f"  [WARN] Could not detect CSV type for {path.name}. Headers: {headers}")
         return "unknown", []
@@ -220,15 +237,18 @@ def _parse_balances(rows, headers, snap_date):
 
 
 def _infer_cc_account_name(path):
-    """Guess the card name from the filename. e.g. amex_march.csv -> 'Amex'."""
+    """Guess the card name from the filename."""
     name = path.stem.lower()
+    if "apple card" in name or ("apple" in name and "card" in name):
+        return "Apple Card"
+    if "year to date" in name or "citi" in name or "costco" in name:
+        return "Costco Citi"
     if "amex" in name or "american express" in name:
         return "Amex"
     if "chase" in name:
         return "Chase"
     if "fsfcu" in name or "fidelity" in name:
         return "FSFCU Credit"
-    # Fall back to title-cased stem
     return path.stem.replace("_", " ").title()
 
 
@@ -278,6 +298,119 @@ def _parse_cc_transactions(rows, headers, account_name):
             "date": iso_date,
             "account": account_name,
             "description": desc,
+            "category": category,
+            "tags": "",
+            "amount": amount,
+            "source": "cc_csv",
+        })
+
+    return results
+
+
+def _parse_citi_transactions(rows, headers, account_name):
+    """
+    Parse Citi card CSV: Status, Date, Description, Debit, Credit, Member Name.
+    Debit = purchase (positive in CSV) -> negative in our convention.
+    Credit = refund or payment (negative in CSV) -> positive in our convention (skipped in actuals).
+    """
+    hmap = _header_map(headers)
+
+    def get(row, key_options):
+        for k in key_options:
+            orig = hmap.get(k)
+            if orig and orig in row and row[orig].strip():
+                return row[orig].strip()
+        return ""
+
+    results = []
+    for row in rows:
+        status = get(row, ["status"])
+        if status.lower() not in ("cleared", ""):
+            continue
+
+        raw_date = get(row, ["date"])
+        desc     = get(row, ["description"])
+        debit    = get(row, ["debit"])
+        credit   = get(row, ["credit"])
+
+        if not raw_date or not desc:
+            continue
+
+        iso_date = _normalize_date(raw_date)
+        if not iso_date:
+            continue
+
+        if debit:
+            try:
+                amount = -abs(float(debit.replace(",", "")))
+            except ValueError:
+                continue
+        elif credit:
+            try:
+                amount = -float(credit.replace(",", ""))  # negative credit -> positive (refund/payment)
+            except ValueError:
+                continue
+        else:
+            continue
+
+        results.append({
+            "date": iso_date,
+            "account": account_name,
+            "description": desc,
+            "category": "Uncategorized",
+            "tags": "",
+            "amount": round(amount, 2),
+            "source": "cc_csv",
+        })
+
+    return results
+
+
+def _parse_apple_transactions(rows, headers, account_name):
+    """
+    Parse Apple Card CSV: Transaction Date, Clearing Date, Description, Merchant,
+    Category, Type, Amount (USD), Purchased By.
+    Purchases are positive -> flip to negative. Payments are negative -> flip to positive (skipped).
+    """
+    hmap = _header_map(headers)
+
+    def get(row, key_options):
+        for k in key_options:
+            orig = hmap.get(k)
+            if orig and orig in row and row[orig].strip():
+                return row[orig].strip()
+        return ""
+
+    results = []
+    for row in rows:
+        raw_date   = get(row, ["transaction date"])
+        desc       = get(row, ["description"])
+        merchant   = get(row, ["merchant"])
+        category   = get(row, ["category"]) or "Uncategorized"
+        txn_type   = get(row, ["type"])
+        raw_amount = get(row, ["amount (usd)"])
+
+        if not raw_date or not raw_amount:
+            continue
+
+        if txn_type.lower() == "payment":
+            continue  # skip bill payments
+
+        iso_date = _normalize_date(raw_date)
+        if not iso_date:
+            continue
+
+        try:
+            cc_amount = float(raw_amount.replace(",", ""))
+        except ValueError:
+            continue
+
+        amount = round(-cc_amount, 2)  # positive purchase -> negative expense
+
+        results.append({
+            "date": iso_date,
+            "account": account_name,
+            "description": merchant or desc,
             "category": category,
             "tags": "",
             "amount": amount,

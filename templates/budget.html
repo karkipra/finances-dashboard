@@ -19,6 +19,9 @@
   Data collection started March 2026. Figures shown for earlier months are planning estimates only, not based on actual transactions.
 </div>
 
+<!-- Monthly summary bar (shown when actuals exist) -->
+<div id="actualsSummary" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px"></div>
+
 <div class="budget-layout">
 
   <!-- KPIs: Net cash + Invested -->
@@ -57,6 +60,19 @@
 
 {% block styles %}
 <style>
+.note-trigger {
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0.4;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+.note-trigger:hover { opacity: 1; color: var(--blue); }
+tr:has(.note-trigger[title]:not([title="Add note"])) .note-trigger { opacity: 0.8; }
+
 .editable-amt {
   cursor: pointer;
   border-bottom: 1px dashed var(--muted);
@@ -76,6 +92,7 @@
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let year = 2026, month = 3;
 let _data = null;
+let _notes = {};
 
 document.getElementById('prevMonth').addEventListener('click', () => {
   month--; if (month < 1) { month = 12; year--; }
@@ -95,8 +112,12 @@ async function load() {
   const isCurrent = year === CURRENT_YEAR && month === CURRENT_MONTH;
   document.getElementById('currentBadge').style.display = isCurrent ? '' : 'none';
   document.getElementById('monthLabel').style.color = isCurrent ? 'var(--blue)' : '';
-  const resp = await fetch(`/api/budget-plan?year=${year}&month=${month}`);
+  const [resp, notesResp] = await Promise.all([
+    fetch(`/api/budget-plan?year=${year}&month=${month}`),
+    fetch(`/api/budget-notes?year=${year}&month=${month}`)
+  ]);
   _data = await resp.json();
+  _notes = await notesResp.json();
   const asOf = document.getElementById('dataAsOf');
   if (_data.latest_transaction_date) {
     const d = new Date(_data.latest_transaction_date + 'T00:00:00');
@@ -205,12 +226,17 @@ function subRow(label, planned, actual, showActuals, category, editable) {
   const diffStr = actual === 0 ? '' : (diff >= 0 ? `+${fmtExact(diff)}` : `-${fmtExact(Math.abs(diff))}`);
   const diffCls = actual === 0 ? '' : (diff <= 0 ? 'positive' : 'negative');
   const actualStr = actual === 0 ? '<span style="color:var(--muted)">—</span>' : fmtExact(actual);
-  return `<tr>
+  const note = _notes[category] || '';
+  const noteIcon = `<span class="note-trigger" data-cat="${category}" title="${note ? note : 'Add note'}">${note ? '&#128221;' : '&#43;'}</span>`;
+  const noteRow = note ? `<tr class="note-row" data-cat="${category}">
+    <td colspan="4" style="padding:0 10px 5px 28px;font-size:11px;color:var(--muted);font-style:italic">${note}</td>
+  </tr>` : '';
+  return `<tr class="subrow-main" data-cat="${category}">
     <td style="padding-left:20px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${label}</td>
     <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${fmtExact(planned)}</td>
-    <td class="right" style="padding-top:4px;padding-bottom:4px;font-size:12px">${actualStr}</td>
+    <td class="right" style="padding-top:4px;padding-bottom:4px;font-size:12px;white-space:nowrap">${actualStr} ${noteIcon}</td>
     <td class="right ${diffCls}" style="padding-top:4px;padding-bottom:4px;font-size:11px">${diffStr}</td>
-  </tr>`;
+  </tr>${noteRow}`;
 }
 
 function spendingTotalRow(label, planned, actual, showActuals) {
@@ -292,8 +318,54 @@ const SUB_CATS = [
   { label: 'Pets',            key: 'expenses_pets' },
   { label: 'Personal / misc', key: 'expenses_personal_misc' },
   { label: 'Fitness',         key: 'expenses_fitness' },
-  { label: 'Buffer / misc',   key: 'expenses_buffer_misc' },
+  { label: 'Entertainment',      key: 'expenses_entertainment' },
+  { label: 'Buffer / misc',      key: 'expenses_buffer_misc' },
 ];
+
+// ---- summary bar ----
+
+function renderSummary(data, hasActuals, isCurrent) {
+  const el = document.getElementById('actualsSummary');
+  if (!hasActuals) { el.style.display = 'none'; return; }
+
+  const plan    = data.plan || {};
+  const actuals = data.actuals_by_category || {};
+  const label   = isCurrent ? 'so far' : 'actual';
+
+  // Total spending planned vs actual (exclude savings and one-time)
+  const spendingPlanned = SUB_CATS.reduce((s, c) => s + Math.abs(plan[c.key]?.amount || 0), 0);
+  const spendingActual  = SUB_CATS.reduce((s, c) => s + (actuals[c.key] || 0), 0)
+                        + (actuals['expenses_buffer_misc'] || 0);
+  const pct     = spendingPlanned > 0 ? Math.min(spendingActual / spendingPlanned * 100, 100) : 0;
+  const over    = spendingActual > spendingPlanned;
+  const barColor = over ? 'var(--red)' : pct > 85 ? '#ff9f0a' : 'var(--green)';
+  const diffAmt  = Math.abs(spendingActual - spendingPlanned);
+  const diffLabel = over
+    ? `<span style="color:var(--red)">+${fmtExact(diffAmt)} over</span>`
+    : `<span style="color:var(--green)">${fmtExact(diffAmt)} left</span>`;
+
+  // Top 3 over-budget categories
+  const overCats = SUB_CATS
+    .map(c => ({ label: c.label, planned: Math.abs(plan[c.key]?.amount || 0), actual: actuals[c.key] || 0 }))
+    .filter(c => c.planned > 0 && c.actual > c.planned)
+    .sort((a, b) => (b.actual - b.planned) - (a.actual - a.planned))
+    .slice(0, 3);
+
+  const flagsHtml = overCats.length
+    ? overCats.map(c => `<span style="background:rgba(255,59,48,0.1);color:var(--red);border-radius:4px;padding:2px 7px;font-size:11px;white-space:nowrap">${c.label} +${fmtExact(c.actual - c.planned)}</span>`).join(' ')
+    : `<span style="color:var(--green);font-size:11px">All categories on track</span>`;
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+      <span style="font-weight:600;font-size:13px">Spending ${label}</span>
+      <span style="font-size:12px;color:var(--muted)">${fmtExact(spendingActual)} of ${fmtExact(spendingPlanned)} &nbsp; ${diffLabel}</span>
+    </div>
+    <div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:10px;overflow:hidden">
+      <div style="height:100%;width:${pct.toFixed(1)}%;background:${barColor};border-radius:4px;transition:width 0.4s"></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${flagsHtml}</div>`;
+}
 
 // ---- render ----
 
@@ -302,12 +374,12 @@ function render(data) {
   const actuals = data.actuals_by_category || {};
   const locked = data.locked || false;
   const isCurrent = data.is_current_month || false;
-  // Actuals disabled until clean transaction data exists (CC + investment txns polluting results)
-  const hasActuals = false;
+  const hasActuals = data.has_actuals || false;
   const actualHeader = isCurrent ? 'So far' : 'Actual';
   const editable = !locked;
 
   renderLockControl(locked, isCurrent);
+  renderSummary(data, hasActuals, isCurrent);
 
   // Pre-data disclaimer banner
   const isBeforeMar2026 = (year < 2026) || (year === 2026 && month < 3);
@@ -348,7 +420,7 @@ function render(data) {
       planned: Math.abs(plan[c.key]?.amount || 0),
       actual:  actuals[c.key] || 0,
     }))
-    .filter(r => r.planned > 0);
+    .filter(r => r.planned > 0 || r.actual > 0);
 
   const monthlyExpTotal = Math.abs(plan.monthly_expenses?.amount || 0);
   const spendingPlanned = subItems.length
@@ -368,9 +440,11 @@ function render(data) {
   // --- Expenses: One-time ---
   const oneTime = Math.abs(plan.one_time_expense?.amount || 0);
   const oneTimeNote = plan.one_time_expense?.notes || null;
+  const nastayGiftsActual  = actuals['expenses_nastya_gifts'] || 0;
+  const nastayGiftsPlanned = Math.abs(plan.expenses_nastya_gifts?.amount || 0);
 
   const totalExpensePlanned = spendingPlanned + savingsTotal + oneTime;
-  const totalExpenseActual = spendingActual + savingsActual;
+  const totalExpenseActual = spendingActual + savingsActual + nastayGiftsActual;
   const net = totalIncomePlanned - totalExpensePlanned;
 
   // --- Build expense table ---
@@ -407,22 +481,30 @@ function render(data) {
   }
 
   // One-time expense
-  if (oneTime > 0) {
-    const cols = hasActuals ? ' colspan="1"' : ' colspan="2"';
-    expHtml += sectionLabel('One-time', null, false, actualHeader);
-    const oneTimeLabel = oneTimeNote
-      ? `One-time expense <span style="font-weight:400;color:var(--muted);font-size:11px">(${oneTimeNote})</span>`
-      : 'One-time expense';
-    if (!hasActuals) {
+  if (oneTime > 0 || nastayGiftsActual > 0 || nastayGiftsPlanned > 0) {
+    expHtml += sectionLabel('One-time', null, hasActuals, actualHeader);
+    if (oneTime > 0) {
+      const oneTimeLabel = oneTimeNote
+        ? `One-time expense <span style="font-weight:400;color:var(--muted);font-size:11px">(${oneTimeNote})</span>`
+        : 'One-time expense';
       expHtml += `<tr>
         <td style="padding-left:20px;font-size:13px;color:var(--muted)">${oneTimeLabel}</td>
         <td class="right negative" style="font-size:13px">${fmtExact(oneTime)}</td>
+        ${hasActuals ? '<td></td><td></td>' : ''}
       </tr>`;
-    } else {
+    }
+    if (nastayGiftsPlanned > 0 || nastayGiftsActual > 0) {
+      const giftDiff = nastayGiftsActual - nastayGiftsPlanned;
+      const giftDiffStr = (nastayGiftsPlanned > 0 && nastayGiftsActual > 0)
+        ? (giftDiff >= 0 ? `+${fmtExact(giftDiff)}` : `-${fmtExact(Math.abs(giftDiff))}`) : '';
+      const giftDiffCls = giftDiff <= 0 ? 'positive' : 'negative';
       expHtml += `<tr>
-        <td style="padding-left:20px;font-size:13px;color:var(--muted)">${oneTimeLabel}</td>
-        <td class="right negative" style="font-size:13px">${fmtExact(oneTime)}</td>
-        <td></td><td></td>
+        <td style="padding-left:20px;font-size:13px;color:var(--muted)">Nastya's gift</td>
+        ${hasActuals
+          ? `<td class="right negative" style="font-size:13px">${nastayGiftsPlanned > 0 ? fmtExact(nastayGiftsPlanned) : ''}</td>
+             <td class="right negative" style="font-size:13px">${nastayGiftsActual > 0 ? fmtExact(nastayGiftsActual) : '<span style="color:var(--muted)">—</span>'}</td>
+             <td class="right ${giftDiffCls}" style="font-size:11px">${giftDiffStr}</td>`
+          : `<td class="right negative" style="font-size:13px">${fmtExact(nastayGiftsPlanned)}</td>`}
       </tr>`;
     }
   }
@@ -449,6 +531,49 @@ function render(data) {
     <div class="kpi-main ${investedCls}" style="font-size:20px">${fmtExact(savingsTotal)}</div>
     <div class="kpi-sub" style="margin-top:4px;font-size:11px">HYSA + Roth</div>`;
 }
+
+// ---- note editor ----
+
+document.getElementById('expenseTable').addEventListener('click', e => {
+  const trigger = e.target.closest('.note-trigger');
+  if (!trigger) return;
+  const category = trigger.dataset.cat;
+  const existing = _notes[category] || '';
+
+  // Remove any open editor first
+  document.querySelectorAll('.note-editor-row').forEach(r => r.remove());
+
+  const tr = trigger.closest('tr');
+  const editorRow = document.createElement('tr');
+  editorRow.className = 'note-editor-row';
+  editorRow.innerHTML = `<td colspan="4" style="padding:4px 10px 8px 28px">
+    <input id="noteInput" type="text" value="${existing.replace(/"/g, '&quot;')}"
+      placeholder="Add a note..."
+      style="width:100%;font-size:12px;background:var(--card-bg);color:var(--fg);border:1px solid var(--blue);border-radius:5px;padding:4px 8px;outline:none">
+  </td>`;
+  tr.after(editorRow);
+
+  const input = editorRow.querySelector('#noteInput');
+  input.focus();
+  input.select();
+
+  async function save() {
+    const note = input.value.trim();
+    _notes[category] = note;
+    await fetch('/api/budget-notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({year, month, category, note})
+    });
+    render(_data);
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { editorRow.remove(); }
+  });
+  input.addEventListener('blur', save);
+});
 
 load();
 </script>
