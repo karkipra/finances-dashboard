@@ -1,6 +1,7 @@
 # Pratik + Nastya Monthly Budget - Detailed Reference
 
 Last updated: 2026-03-14 (session 2). Use this file to orient any new session quickly.
+GitHub: `karkipra/nastik-finances-dashboard` (karkipra account, not pratik-anthromind).
 
 ---
 
