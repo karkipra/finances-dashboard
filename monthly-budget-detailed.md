@@ -50,7 +50,7 @@ Income filter note: the dashboard only counts real deposits. Filtered out: CC au
   - Musely (Nastya): ~$94 every 3 months. Smoothed to ~$31/month
   - Embrace Pet Insurance: monthly, routes to pets not healthcare
   - Cottage Health one-time bill: was in Feb, do not expect to recur
-  - $164/month flat all year (Jan-Dec 2026). Feb Cottage Health was a one-time anomaly. Zion Healthshare hits quarterly (~$114 every 3 months, landing Mar/Jun/Sep/Dec) so those months will run ~$15 over plan - expected.
+  - $164/month flat all year (Jan-Dec 2026). Breakdown: Zion Healthshare $114/month (Pratik's insurance, monthly recurring) + Musely $94 every 3 months (~$31/month amortized) + ~$19 buffer for pharmacy. Feb Cottage Health was a one-time anomaly.
 - Keywords: `zion healthshare`, `dental insurance`, `musely`, `kaiser`, `pharmacy`, `medical`
 
 ### Fitness: $150/month (flat, all months)
@@ -335,7 +335,7 @@ Use the Read tool directly on the PDF - it can render it visually without needin
 - Past months: shows "actual" with over/under flags
 
 ### Healthcare is $164 Flat All Year
-- Zion Healthshare hits quarterly (~$114 every 3 months: Mar, Jun, Sep, Dec) - those months will run ~$15 over
+- Zion Healthshare is $114/month recurring (Pratik's insurance). Not quarterly - every month.
 - Cottage Health in Feb was a one-time bill, not recurring
 
 ---
