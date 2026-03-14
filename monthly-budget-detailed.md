@@ -1,6 +1,6 @@
 # Pratik + Nastya Monthly Budget - Detailed Reference
 
-Last updated: 2026-03-14 (session 2). Use this file to orient any new session quickly.
+Last updated: 2026-03-14 (session 3). Use this file to orient any new session quickly.
 GitHub: `karkipra/nastik-finances-dashboard` (karkipra account, not pratik-anthromind).
 
 ---
@@ -180,7 +180,9 @@ Income filter note: the dashboard only counts real deposits. Filtered out: CC au
 | Account | Balance | Notes |
 |---------|---------|-------|
 | Fidelity (Nastya Roth IRA) | $15,653.37 | Real number as of Mar 2026 from Empower screenshot. Was $17K estimated. |
+| Fidelity UC Defined Contribution (Nastya) | $534.75 | Nastya's UC employer retirement plan. Small balance, just started. |
 | Principal (IMF 401k) | $21,218.04 | Real number as of Mar 2026 from Empower screenshot. Was $21K estimated. |
+| Pratik HealthEquity (HSA) | $3,313.60 | Pratik's HSA. Grows tax-free. |
 
 **Net worth as of Mar 11, 2026: ~$184,298** (approximate - computed from above balances).
 
@@ -276,6 +278,65 @@ Generic "transfers" (e.g., internal bank sweeps) are skipped UNLESS a keyword ma
 ### Where, Inc. (Pratik, co-founder, 33% of 10M share pool)
 - Configured in config.py but commented out - activate when ready.
 - Immediately vested as of Mar 11, 2026.
+
+---
+
+## Annual Reminders
+
+### Every April - Max Roth IRA for Prior Year
+- IRS deadline to contribute to prior year's Roth IRA is Tax Day (~April 15)
+- Max out both Pratik (Schwab) and Nastya (Fidelity) Roth IRAs for the prior year before the deadline
+- 2026 limit: $7,000/person ($14,000 combined)
+- Budget note "🎉 max Roth for prior year!" is pre-loaded in April of every year in the dashboard
+- March-April budget shows higher Roth contributions ($2,250/month) to reflect this catch-up
+
+### Every October - Mint Mobile Annual Renewal
+- $400 one-time expense for phone plan. Pre-loaded in budget plan.
+
+### Every November - Car Registration
+- ~$500 DMV renewal. Pre-loaded in budget plan.
+
+---
+
+## Session 3 Learnings (2026-03-14)
+
+### Net Worth Updates from Empower PDF
+Full Empower dashboard PDF had several accounts missing from DB or with stale balances:
+- Charles Schwab: corrected to $41,649.34
+- Vanguard Google 401k: corrected to $78,627.76
+- Vanguard Pratik Roth: corrected to $13,522.82
+- American Express: corrected to -$1,014.72
+- Added: Fidelity UC Defined Contribution (Nastya) $534.75 - her UC employer plan
+- Added: Pratik HealthEquity (HSA) $3,313.60
+- Removed: Fidelity Traditional IRA ($7.58 rounding artifact)
+- Excluded: Citibank Costco Visa and FSFCU Visa Signature (CC liabilities not tracked individually)
+- Net worth as of Mar 14, 2026: **$183,926.10**
+
+### Always Cross-Check Empower PDF Against DB After Each Import
+The PDF is the source of truth. After importing a new CSV, open the Empower dashboard PDF and verify:
+1. All investment/retirement account balances match
+2. No accounts are missing
+3. Credit card balances match (Amex, FSFCU)
+
+### Empower PDF Reading
+Use the Read tool directly on the PDF - it can render it visually without needing pdfplumber or PyPDF2.
+
+### Notes Feature
+- Click `+` icon on any row to add a note (plan or actuals months)
+- Notes show in italic below the row, and 🎉 icon replaces `+` when note exists
+- Notes on `roth` or `hysa` category also surface in the "Invested" KPI card at the top
+- Stored in `budget_actuals_notes` table: (year, month, category, note)
+- Deleting note text and saving removes it from DB
+
+### Progress Bar
+- Now shows for all months with a plan (not just months with actuals)
+- Future months: shows full planned amount, "No actuals yet" label
+- Current month: shows "so far" with % of budget used
+- Past months: shows "actual" with over/under flags
+
+### Healthcare is $164 Flat All Year
+- Zion Healthshare hits quarterly (~$114 every 3 months: Mar, Jun, Sep, Dec) - those months will run ~$15 over
+- Cottage Health in Feb was a one-time bill, not recurring
 
 ---
 

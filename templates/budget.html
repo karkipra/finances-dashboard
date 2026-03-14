@@ -217,10 +217,15 @@ function incomeRow(label, amount, category, editable, note) {
 
 function subRow(label, planned, actual, showActuals, category, editable) {
   if (!showActuals) {
-    return `<tr>
+    const note = _notes[category] || '';
+    const noteIcon = `<span class="note-trigger" data-cat="${category}" title="${note ? note : 'Add note'}">${note ? '&#127881;' : '&#43;'}</span>`;
+    const noteRow = note ? `<tr class="note-row" data-cat="${category}">
+      <td colspan="2" style="padding:0 10px 5px 28px;font-size:11px;color:var(--muted);font-style:italic">${note}</td>
+    </tr>` : '';
+    return `<tr class="subrow-main" data-cat="${category}">
       <td style="padding-left:20px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${label}</td>
-      <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${editableAmt(planned, category, editable)}</td>
-    </tr>`;
+      <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px;white-space:nowrap">${editableAmt(planned, category, editable)} ${noteIcon}</td>
+    </tr>${noteRow}`;
   }
   const diff = actual - planned;
   const diffStr = actual === 0 ? '' : (diff >= 0 ? `+${fmtExact(diff)}` : `-${fmtExact(Math.abs(diff))}`);
@@ -259,10 +264,15 @@ function spendingTotalRow(label, planned, actual, showActuals) {
 
 function savingsRow(label, planned, actual, showActuals, category, editable) {
   if (!showActuals) {
-    return `<tr style="background:rgba(52,199,89,0.08)">
+    const note = _notes[category] || '';
+    const noteIcon = `<span class="note-trigger" data-cat="${category}" title="${note ? note : 'Add note'}">${note ? '&#127881;' : '&#43;'}</span>`;
+    const noteRow = note ? `<tr class="note-row" data-cat="${category}" style="background:rgba(52,199,89,0.08)">
+      <td colspan="2" style="padding:0 10px 5px 28px;font-size:11px;color:var(--muted);font-style:italic">${note}</td>
+    </tr>` : '';
+    return `<tr class="subrow-main" data-cat="${category}" style="background:rgba(52,199,89,0.08)">
       <td style="padding-left:20px;padding-top:6px;padding-bottom:6px;font-size:13px">$ ${label}</td>
-      <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500">${editableAmt(planned, category, editable)}</td>
-    </tr>`;
+      <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500;white-space:nowrap">${editableAmt(planned, category, editable)} ${noteIcon}</td>
+    </tr>${noteRow}`;
   }
   const actualStr = actual === 0 ? '<span style="color:var(--muted)">—</span>' : fmtExact(actual);
   return `<tr style="background:rgba(52,199,89,0.08)">
@@ -326,11 +336,14 @@ const SUB_CATS = [
 
 function renderSummary(data, hasActuals, isCurrent) {
   const el = document.getElementById('actualsSummary');
-  if (!hasActuals) { el.style.display = 'none'; return; }
-
   const plan    = data.plan || {};
   const actuals = data.actuals_by_category || {};
-  const label   = isCurrent ? 'so far' : 'actual';
+
+  const spendingPlannedCheck = SUB_CATS.reduce((s, c) => s + Math.abs(plan[c.key]?.amount || 0), 0);
+  if (spendingPlannedCheck === 0) { el.style.display = 'none'; return; }
+
+  const isFuture = !isCurrent && !hasActuals;
+  const label = isFuture ? 'planned' : isCurrent ? 'so far' : 'actual';
 
   // Total spending planned vs actual (exclude savings and one-time)
   const spendingPlanned = SUB_CATS.reduce((s, c) => s + Math.abs(plan[c.key]?.amount || 0), 0);
@@ -353,7 +366,9 @@ function renderSummary(data, hasActuals, isCurrent) {
 
   const flagsHtml = overCats.length
     ? overCats.map(c => `<span style="background:rgba(255,59,48,0.1);color:var(--red);border-radius:4px;padding:2px 7px;font-size:11px;white-space:nowrap">${c.label} +${fmtExact(c.actual - c.planned)}</span>`).join(' ')
-    : `<span style="color:var(--green);font-size:11px">All categories on track</span>`;
+    : isFuture
+      ? `<span style="color:var(--muted);font-size:11px">No actuals yet</span>`
+      : `<span style="color:var(--green);font-size:11px">All categories on track</span>`;
 
   el.style.display = 'block';
   el.innerHTML = `
@@ -527,9 +542,11 @@ function render(data) {
 
   // --- Invested (HYSA + Roth) ---
   const investedCls = savingsTotal > 0 ? 'positive' : '';
+  const investedNote = _notes['roth'] || _notes['hysa'] || '';
   document.getElementById('netInvestedRow').innerHTML = `
     <div class="kpi-main ${investedCls}" style="font-size:20px">${fmtExact(savingsTotal)}</div>
-    <div class="kpi-sub" style="margin-top:4px;font-size:11px">HYSA + Roth</div>`;
+    <div class="kpi-sub" style="margin-top:4px;font-size:11px">HYSA + Roth</div>
+    ${investedNote ? `<div style="margin-top:8px;font-size:12px;color:var(--green)">${investedNote}</div>` : ''}`;
 }
 
 // ---- note editor ----
