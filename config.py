@@ -66,6 +66,8 @@ BUDGET_CATEGORY_RULES = {
     "costco":             "expenses_groceries",
     "grocery":            "expenses_groceries",
     "supermarket":        "expenses_groceries",
+    # Dining exceptions — must come before generic dining/restaurant rules
+    "orchid eros":        "expenses_buffer_misc",
     # Dining
     "doordash":           "expenses_dining",
     "uber eats":          "expenses_dining",
@@ -99,6 +101,7 @@ BUDGET_CATEGORY_RULES = {
     "netflix":            "expenses_subscriptions",
     "playstation":        "expenses_subscriptions",
     "overleaf":           "expenses_subscriptions",
+    "otree":              "expenses_subscriptions",
     "hbomax":             "expenses_subscriptions",
     "hbo max":            "expenses_subscriptions",
     # Healthcare

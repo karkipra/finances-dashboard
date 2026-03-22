@@ -426,11 +426,21 @@ Each month of real data makes every future projection more accurate. The goal is
 
 ## Lessons Learned (2026-03-22 Session)
 
-### Old Direct Citi Import Caused Double-Counting in Groceries
-A prior import had loaded Costco transactions directly from a Citi CSV with account name "Costco Citi".
-The Empower CSV imports the same transactions with account name "Costco Anywhere Visa Card By Citi - Ending in 7865".
-The dedup key is `(date, account, description, amount)` - different account name = different row = double-counted.
-Fix: `DELETE FROM transactions WHERE account='Costco Citi'`. Going forward, always use Empower as the single source for all accounts including the Costco Citi card. Never import a direct Citi statement.
+### Citi Card Direct Import vs Empower: Persistent Duplicate Risk
+The `Year to date.CSV` (direct Citi export) and the Empower transactions CSV both cover the Costco Citi card, but with different account names and different merchant description formats:
+- Direct Citi: account = `"Costco Citi"`, description = `"CHARGEPOINT 8887584389 408-8414500 CA"`
+- Empower: account = `"Costco Anywhere Visa Card By Citi - Ending in 7865"`, description = `"Chargepoint"`
+
+Because the dedup key is `(date, account, description, amount)` and both the account and description differ, every transaction appears twice. Affects EV charging, entertainment (SBCC), groceries, and any other Citi card spend.
+
+**Rule: Never import the direct Citi `Year to date.CSV` for any date range already covered by an Empower export. The `Year to date.CSV` is only useful for Jan-Feb 2026 data not yet in Empower.**
+
+Fix applied 2026-03-22:
+- `DELETE FROM transactions WHERE description='COSTCO WHSE #0474 GOLETA CA' AND account='Costco Citi'` (9 rows - Costco store purchases)
+- `DELETE FROM transactions WHERE account='Costco Citi' AND date >= '2026-03-01'` (6 rows - all March Citi dupes)
+- Jan-Feb `Costco Citi` rows kept - those dates are not covered by any Empower export yet.
+
+Going forward: once Empower exports consistently include the Citi card (as seen in the 2026-03-22 export), use Empower only. Verify with: `SELECT account, MIN(date), MAX(date), COUNT(*) FROM transactions WHERE LOWER(account) LIKE '%citi%' GROUP BY account`.
 
 ### Manual Placeholder Transactions Leak into Actuals
 "Nastya Gift (manual)" was a manually-inserted row from a prior session. It matched the `"nastya gift"` rule in `BUDGET_CATEGORY_RULES` and appeared in actuals as $520. It had no backing real transaction.
