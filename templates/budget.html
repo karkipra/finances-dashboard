@@ -60,25 +60,35 @@
 
 {% block styles %}
 <style>
-.note-trigger {
-  cursor: pointer;
-  font-size: 10px;
-  color: var(--muted);
-  opacity: 0.4;
-  margin-left: 4px;
-  vertical-align: middle;
-  transition: opacity 0.15s;
-  user-select: none;
-}
-.note-trigger:hover { opacity: 1; color: var(--blue); }
-tr:has(.note-trigger[title]:not([title="Add note"])) .note-trigger { opacity: 0.8; }
-
 .editable-amt {
   cursor: pointer;
   border-bottom: 1px dashed var(--muted);
   padding-bottom: 1px;
 }
 .editable-amt:hover { color: var(--blue); border-color: var(--blue); }
+
+.expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  margin-right: 5px;
+  user-select: none;
+  vertical-align: middle;
+  flex-shrink: 0;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  transition: all 0.1s;
+}
+.expand-btn:hover { border-color: var(--blue); color: var(--blue); }
+.expand-btn.open  { background: var(--blue); color: #fff; border-color: var(--blue); }
+.txn-expand-row td { border-bottom: none; }
 
 /* Compact expense table */
 #expenseTable td { padding: 5px 10px; font-size: 12px; }
@@ -92,7 +102,6 @@ tr:has(.note-trigger[title]:not([title="Add note"])) .note-trigger { opacity: 0.
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 let year = 2026, month = 3;
 let _data = null;
-let _notes = {};
 
 document.getElementById('prevMonth').addEventListener('click', () => {
   month--; if (month < 1) { month = 12; year--; }
@@ -106,18 +115,18 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 const TODAY = new Date();
 const CURRENT_YEAR  = TODAY.getFullYear();
 const CURRENT_MONTH = TODAY.getMonth() + 1;
+let _expandCache = {};
+let _expandOpen  = {};
 
 async function load() {
+  _expandCache = {};
+  _expandOpen  = {};
   document.getElementById('monthLabel').textContent = `${MONTHS[month-1]} ${year}`;
   const isCurrent = year === CURRENT_YEAR && month === CURRENT_MONTH;
   document.getElementById('currentBadge').style.display = isCurrent ? '' : 'none';
   document.getElementById('monthLabel').style.color = isCurrent ? 'var(--blue)' : '';
-  const [resp, notesResp] = await Promise.all([
-    fetch(`/api/budget-plan?year=${year}&month=${month}`),
-    fetch(`/api/budget-notes?year=${year}&month=${month}`)
-  ]);
+  const resp = await fetch(`/api/budget-plan?year=${year}&month=${month}`);
   _data = await resp.json();
-  _notes = await notesResp.json();
   const asOf = document.getElementById('dataAsOf');
   if (_data.latest_transaction_date) {
     const d = new Date(_data.latest_transaction_date + 'T00:00:00');
@@ -149,6 +158,57 @@ async function saveAmount(category, value) {
     body: JSON.stringify({year, month, category, amount})
   });
   load();
+}
+
+// ---- transaction expand ----
+
+function shortAcct(a) {
+  if (!a) return '';
+  const l = a.toLowerCase();
+  if (l.includes('apple card'))                        return 'Apple Card';
+  if (l.includes('blue cash') || l.includes('1006'))   return 'Amex';
+  if (l.includes('costco')    || l.includes('7865'))   return 'Citi';
+  if (l.includes('4346') || l.includes('joint check')) return 'Checking';
+  if (l.includes('3048') || l.includes('fsfcu'))       return 'FSFCU';
+  return '';
+}
+
+async function toggleExpand(key, numCols) {
+  const row = document.getElementById('expand-' + key);
+  if (!row) return;
+  const btn = document.querySelector('[data-expand="' + key + '"]');
+
+  if (_expandOpen[key]) {
+    row.style.display = 'none';
+    if (btn) { btn.textContent = '+'; btn.classList.remove('open'); }
+    _expandOpen[key] = false;
+    return;
+  }
+
+  if (!_expandCache[key]) {
+    const r = await fetch(`/api/budget-category-transactions?year=${year}&month=${month}&budget_cat=${encodeURIComponent(key)}`);
+    _expandCache[key] = await r.json();
+  }
+  const txns = _expandCache[key];
+  if (!txns.length) return;
+
+  const tRows = txns.map(t => {
+    const mo = t.date.slice(5, 7), dy = t.date.slice(8, 10);
+    const acct = shortAcct(t.account);
+    const acctTag = acct ? `<span style="margin-left:5px;color:var(--muted);font-size:10px">${acct}</span>` : '';
+    return `<tr>
+      <td style="padding:3px 8px 3px 28px;font-size:11px;color:var(--muted);white-space:nowrap">${mo}/${dy}</td>
+      <td style="padding:3px 8px;font-size:11px" colspan="${numCols - 2}">${t.description}${acctTag}</td>
+      <td class="right" style="padding:3px 8px;font-size:11px">${fmtExact(Math.abs(t.amount))}</td>
+    </tr>`;
+  }).join('');
+
+  row.innerHTML = `<td colspan="${numCols}" style="padding:4px 0;background:rgba(0,0,0,0.015)">
+    <table style="width:100%;border-collapse:collapse">${tRows}</table>
+  </td>`;
+  row.style.display = 'table-row';
+  if (btn) { btn.textContent = '−'; btn.classList.add('open'); }
+  _expandOpen[key] = true;
 }
 
 // ---- lock control ----
@@ -216,32 +276,26 @@ function incomeRow(label, amount, category, editable, note) {
 }
 
 function subRow(label, planned, actual, showActuals, category, editable) {
+  const numCols  = showActuals ? 4 : 2;
+  const eBtn     = `<span class="expand-btn" data-expand="${category}" onclick="toggleExpand('${category}',${numCols})">+</span>`;
+  const expandRow = `<tr id="expand-${category}" class="txn-expand-row" style="display:none"></tr>`;
+
   if (!showActuals) {
-    const note = _notes[category] || '';
-    const noteIcon = `<span class="note-trigger" data-cat="${category}" title="${note ? note : 'Add note'}">${note ? '&#127881;' : '&#43;'}</span>`;
-    const noteRow = note ? `<tr class="note-row" data-cat="${category}">
-      <td colspan="2" style="padding:0 10px 5px 28px;font-size:11px;color:var(--muted);font-style:italic">${note}</td>
-    </tr>` : '';
     return `<tr class="subrow-main" data-cat="${category}">
-      <td style="padding-left:20px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${label}</td>
-      <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px;white-space:nowrap">${editableAmt(planned, category, editable)} ${noteIcon}</td>
-    </tr>${noteRow}`;
+      <td style="padding-left:8px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${eBtn}${label}</td>
+      <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px;white-space:nowrap">${editableAmt(planned, category, editable)}</td>
+    </tr>${expandRow}`;
   }
   const diff = actual - planned;
   const diffStr = actual === 0 ? '' : (diff >= 0 ? `+${fmtExact(diff)}` : `-${fmtExact(Math.abs(diff))}`);
   const diffCls = actual === 0 ? '' : (diff <= 0 ? 'positive' : 'negative');
   const actualStr = actual === 0 ? '<span style="color:var(--muted)">—</span>' : fmtExact(actual);
-  const note = _notes[category] || '';
-  const noteIcon = `<span class="note-trigger" data-cat="${category}" title="${note ? note : 'Add note'}">${note ? '&#128221;' : '&#43;'}</span>`;
-  const noteRow = note ? `<tr class="note-row" data-cat="${category}">
-    <td colspan="4" style="padding:0 10px 5px 28px;font-size:11px;color:var(--muted);font-style:italic">${note}</td>
-  </tr>` : '';
   return `<tr class="subrow-main" data-cat="${category}">
-    <td style="padding-left:20px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${label}</td>
+    <td style="padding-left:8px;padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${eBtn}${label}</td>
     <td class="right" style="padding-top:4px;padding-bottom:4px;color:var(--muted);font-size:12px">${fmtExact(planned)}</td>
-    <td class="right" style="padding-top:4px;padding-bottom:4px;font-size:12px;white-space:nowrap">${actualStr} ${noteIcon}</td>
+    <td class="right" style="padding-top:4px;padding-bottom:4px;font-size:12px;white-space:nowrap">${actualStr}</td>
     <td class="right ${diffCls}" style="padding-top:4px;padding-bottom:4px;font-size:11px">${diffStr}</td>
-  </tr>${noteRow}`;
+  </tr>${expandRow}`;
 }
 
 function spendingTotalRow(label, planned, actual, showActuals) {
@@ -263,24 +317,23 @@ function spendingTotalRow(label, planned, actual, showActuals) {
 }
 
 function savingsRow(label, planned, actual, showActuals, category, editable) {
+  const numCols   = showActuals ? 4 : 2;
+  const eBtn      = `<span class="expand-btn" data-expand="${category}" onclick="toggleExpand('${category}',${numCols})">+</span>`;
+  const expandRow = `<tr id="expand-${category}" class="txn-expand-row" style="display:none"></tr>`;
+
   if (!showActuals) {
-    const note = _notes[category] || '';
-    const noteIcon = `<span class="note-trigger" data-cat="${category}" title="${note ? note : 'Add note'}">${note ? '&#127881;' : '&#43;'}</span>`;
-    const noteRow = note ? `<tr class="note-row" data-cat="${category}" style="background:rgba(52,199,89,0.08)">
-      <td colspan="2" style="padding:0 10px 5px 28px;font-size:11px;color:var(--muted);font-style:italic">${note}</td>
-    </tr>` : '';
     return `<tr class="subrow-main" data-cat="${category}" style="background:rgba(52,199,89,0.08)">
-      <td style="padding-left:20px;padding-top:6px;padding-bottom:6px;font-size:13px">$ ${label}</td>
-      <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500;white-space:nowrap">${editableAmt(planned, category, editable)} ${noteIcon}</td>
-    </tr>${noteRow}`;
+      <td style="padding-left:8px;padding-top:6px;padding-bottom:6px;font-size:13px">${eBtn}$ ${label}</td>
+      <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500;white-space:nowrap">${editableAmt(planned, category, editable)}</td>
+    </tr>${expandRow}`;
   }
   const actualStr = actual === 0 ? '<span style="color:var(--muted)">—</span>' : fmtExact(actual);
   return `<tr style="background:rgba(52,199,89,0.08)">
-    <td style="padding-left:20px;padding-top:6px;padding-bottom:6px;font-size:13px">$ ${label}</td>
+    <td style="padding-left:8px;padding-top:6px;padding-bottom:6px;font-size:13px">${eBtn}$ ${label}</td>
     <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500">${fmtExact(planned)}</td>
     <td class="right positive" style="padding-top:6px;padding-bottom:6px;font-size:13px;font-weight:500">${actualStr}</td>
     <td></td>
-  </tr>`;
+  </tr>${expandRow}`;
 }
 
 function sectionLabel(text, extra, showActuals, actualHeader) {
@@ -513,14 +566,17 @@ function render(data) {
       const giftDiffStr = (nastayGiftsPlanned > 0 && nastayGiftsActual > 0)
         ? (giftDiff >= 0 ? `+${fmtExact(giftDiff)}` : `-${fmtExact(Math.abs(giftDiff))}`) : '';
       const giftDiffCls = giftDiff <= 0 ? 'positive' : 'negative';
+      const numCols = hasActuals ? 4 : 2;
+      const giftEBtn = `<span class="expand-btn" data-expand="expenses_nastya_gifts" onclick="toggleExpand('expenses_nastya_gifts',${numCols})">+</span>`;
       expHtml += `<tr>
-        <td style="padding-left:20px;font-size:13px;color:var(--muted)">Nastya's gift</td>
+        <td style="padding-left:8px;font-size:13px;color:var(--muted)">${giftEBtn}Nastya's gift</td>
         ${hasActuals
           ? `<td class="right negative" style="font-size:13px">${nastayGiftsPlanned > 0 ? fmtExact(nastayGiftsPlanned) : ''}</td>
              <td class="right negative" style="font-size:13px">${nastayGiftsActual > 0 ? fmtExact(nastayGiftsActual) : '<span style="color:var(--muted)">—</span>'}</td>
              <td class="right ${giftDiffCls}" style="font-size:11px">${giftDiffStr}</td>`
           : `<td class="right negative" style="font-size:13px">${fmtExact(nastayGiftsPlanned)}</td>`}
-      </tr>`;
+      </tr>
+      <tr id="expand-expenses_nastya_gifts" class="txn-expand-row" style="display:none"></tr>`;
     }
   }
 
@@ -548,49 +604,6 @@ function render(data) {
     <div class="kpi-sub" style="margin-top:4px;font-size:11px">HYSA + Roth</div>
     ${investedNote ? `<div style="margin-top:8px;font-size:12px;color:var(--green)">${investedNote}</div>` : ''}`;
 }
-
-// ---- note editor ----
-
-document.getElementById('expenseTable').addEventListener('click', e => {
-  const trigger = e.target.closest('.note-trigger');
-  if (!trigger) return;
-  const category = trigger.dataset.cat;
-  const existing = _notes[category] || '';
-
-  // Remove any open editor first
-  document.querySelectorAll('.note-editor-row').forEach(r => r.remove());
-
-  const tr = trigger.closest('tr');
-  const editorRow = document.createElement('tr');
-  editorRow.className = 'note-editor-row';
-  editorRow.innerHTML = `<td colspan="4" style="padding:4px 10px 8px 28px">
-    <input id="noteInput" type="text" value="${existing.replace(/"/g, '&quot;')}"
-      placeholder="Add a note..."
-      style="width:100%;font-size:12px;background:var(--card-bg);color:var(--fg);border:1px solid var(--blue);border-radius:5px;padding:4px 8px;outline:none">
-  </td>`;
-  tr.after(editorRow);
-
-  const input = editorRow.querySelector('#noteInput');
-  input.focus();
-  input.select();
-
-  async function save() {
-    const note = input.value.trim();
-    _notes[category] = note;
-    await fetch('/api/budget-notes', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({year, month, category, note})
-    });
-    render(_data);
-  }
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { editorRow.remove(); }
-  });
-  input.addEventListener('blur', save);
-});
 
 load();
 </script>

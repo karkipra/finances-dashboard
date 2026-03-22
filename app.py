@@ -200,6 +200,17 @@ def api_budget_plan():
     return jsonify(data)
 
 
+@app.route("/api/budget-category-transactions")
+def api_budget_category_transactions():
+    today = date.today()
+    year       = request.args.get("year",       today.year,  type=int)
+    month      = request.args.get("month",      today.month, type=int)
+    budget_cat = request.args.get("budget_cat", "")
+    if not budget_cat:
+        return jsonify([])
+    return jsonify(storage.get_transactions_by_budget_category(year, month, budget_cat))
+
+
 @app.route("/api/lock-month", methods=["POST"])
 def api_lock_month():
     body = request.get_json()
@@ -245,21 +256,6 @@ def api_budget_target():
     if not category:
         return jsonify({"error": "category required"}), 400
     storage.set_budget_target(category, target)
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/budget-notes")
-def api_budget_notes():
-    today = date.today()
-    year = request.args.get("year", today.year, type=int)
-    month = request.args.get("month", today.month, type=int)
-    return jsonify(storage.get_budget_notes(year, month))
-
-
-@app.route("/api/budget-notes", methods=["POST"])
-def api_save_budget_note():
-    data = request.get_json()
-    storage.save_budget_note(data["year"], data["month"], data["category"], data.get("note", ""))
     return jsonify({"status": "ok"})
 
 

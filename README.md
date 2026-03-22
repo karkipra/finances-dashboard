@@ -93,6 +93,8 @@ Shows the planned budget for any month from Jan 2025 to Dec 2026 side by side wi
 
 **Planned vs Actual:** When CC statement transactions exist for a month, the expense table automatically gains Planned | Actual | Diff columns. Green = under budget, red = over.
 
+**Transaction drill-down:** Every category row has a `+` button on the left. Click it to expand and see every transaction that was counted toward that category (date, description, source account, amount). Click again to collapse. Cache clears automatically when navigating months.
+
 **Key months:**
 | Month | Notes |
 |-------|-------|
@@ -228,9 +230,11 @@ Re-uploading the same CSV skips duplicates silently — nothing double-counts. S
 - `BUDGET_CATEGORY_RULES` in `config.py` - add/tweak keywords to remap merchants
 - `budget_month_status` table + `lock_month()` / `get_month_status()` in `storage.py`
 - `get_actuals_by_budget_category(year, month)` in `storage.py`
+- `get_transactions_by_budget_category(year, month, budget_cat)` in `storage.py` - powers the drill-down
 - CC statement CSV detection + sign-flip in `parse_csv.py`
 - `POST /api/lock-month` + extended `/api/budget-plan` in `app.py`
-- Budget page: lock button, Planned | Actual so far | Diff columns (appears when locked + data exists)
+- `GET /api/budget-category-transactions` in `app.py` - returns individual transactions for a category/month
+- Budget page: lock button, Planned | Actual so far | Diff columns, per-category `+` drill-down
 
 ---
 
@@ -417,6 +421,33 @@ As actuals accumulate, the system will:
 5. **FIRE number tracking** — at current savings rate, project time to financial independence
 
 Each month of real data makes every future projection more accurate. The goal is that by end of 2026, the system has enough calibration data to model 2028-2030 with confidence.
+
+---
+
+## Lessons Learned (2026-03-22 Session)
+
+### Old Direct Citi Import Caused Double-Counting in Groceries
+A prior import had loaded Costco transactions directly from a Citi CSV with account name "Costco Citi".
+The Empower CSV imports the same transactions with account name "Costco Anywhere Visa Card By Citi - Ending in 7865".
+The dedup key is `(date, account, description, amount)` - different account name = different row = double-counted.
+Fix: `DELETE FROM transactions WHERE account='Costco Citi'`. Going forward, always use Empower as the single source for all accounts including the Costco Citi card. Never import a direct Citi statement.
+
+### Manual Placeholder Transactions Leak into Actuals
+"Nastya Gift (manual)" was a manually-inserted row from a prior session. It matched the `"nastya gift"` rule in `BUDGET_CATEGORY_RULES` and appeared in actuals as $520. It had no backing real transaction.
+Fix: `DELETE FROM transactions WHERE description='Nastya Gift (manual)'`.
+Lesson: manual DB inserts for placeholder/demo purposes should use a description that won't match any category rule, or be tagged with `import_batch='manual_demo'` so they're easy to find and clean up.
+
+### Empower Net Worth PDF Requires Manual Balance Save
+The ingest pipeline's `parse_pdf.extract_budget()` is for the budget spreadsheet PDF only - it does not parse the Empower net worth screenshot PDF.
+To update balances from an Empower net worth screenshot: read the account values from the PDF manually and call `storage.save_balances()` directly with the correct account names and `snapshot_date`.
+The account names must match what's already in `account_balances` table exactly (e.g. "BFSFCU Checking", "Vanguard (Google 401k)") or a new account row is created.
+
+### New Accounts Must Be Added to DB Manually on First Appearance
+The Citibank Costco Visa (7865) had transaction history in Empower but no balance row in `account_balances`. Net worth was understated by ~$1,010 until a balance row was added.
+Any account visible in the Empower net worth PDF but missing from `account_balances` should be added with `storage.save_balances()`.
+
+### Apple Card Is Not in Empower - Safe to Import Separately
+Nastya's Apple Card transactions are not linked in Empower, so importing the Apple Card CSV alongside the Empower transactions CSV does not cause double-counting. The dedup key protects against re-importing the same Apple Card CSV twice.
 
 ---
 

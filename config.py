@@ -134,6 +134,7 @@ BUDGET_CATEGORY_RULES = {
     "amazon":             "expenses_personal_misc",
     "target":             "expenses_personal_misc",
     "haircut":            "expenses_personal_misc",
+    "hairitage":          "expenses_nastya_gifts",
     "salon":              "expenses_personal_misc",
     # Savings (for HYSA/Roth contributions appearing in bank transactions)
     "hysa":               "hysa",

@@ -609,33 +609,66 @@ def get_actuals_by_budget_category(year, month):
     return totals
 
 
-def get_budget_notes(year, month):
-    """Returns {category: note} for the given month."""
+def get_transactions_by_budget_category(year, month, budget_cat):
+    """
+    Return individual transactions that map to budget_cat for a given month.
+    Applies the same filtering as get_actuals_by_budget_category.
+    """
+    import calendar
+    last_day = calendar.monthrange(year, month)[1]
+    start = f"{year}-{month:02d}-01"
+    end   = f"{year}-{month:02d}-{last_day:02d}"
+
     conn = get_conn()
     rows = conn.execute(
-        "SELECT category, note FROM budget_actuals_notes WHERE year=? AND month=?",
-        (year, month)
+        "SELECT date, description, category, amount, account FROM transactions "
+        "WHERE date>=? AND date<=? AND amount<0 ORDER BY date",
+        (start, end)
     ).fetchall()
     conn.close()
-    return {r["category"]: r["note"] for r in rows}
 
+    SKIP_CATS = {"credit card payments", "securities trades", "investment income"}
+    INVEST_ACCT_KEYS = (
+        "roth ira", "brokerage", "401(k)", "401k",
+        "designated beneficiary", "equity awards", "google llc 401",
+    )
+    rules = config.BUDGET_CATEGORY_RULES
+    result = []
 
-def save_budget_note(year, month, category, note):
-    conn = get_conn()
-    if note:
-        conn.execute(
-            """INSERT INTO budget_actuals_notes (year, month, category, note)
-               VALUES (?,?,?,?)
-               ON CONFLICT(year, month, category) DO UPDATE SET note=excluded.note""",
-            (year, month, category, note)
-        )
-    else:
-        conn.execute(
-            "DELETE FROM budget_actuals_notes WHERE year=? AND month=? AND category=?",
-            (year, month, category)
-        )
-    conn.commit()
-    conn.close()
+    for row in rows:
+        desc = (row["description"] or "").lower()
+        cat  = (row["category"]    or "").lower()
+        acct = (row["account"]     or "").lower()
+
+        if cat in SKIP_CATS:
+            continue
+        if any(kw in acct for kw in INVEST_ACCT_KEYS):
+            continue
+
+        matched = None
+        for keyword, bc in rules.items():
+            if keyword in desc:
+                matched = bc
+                break
+        if matched is None:
+            for keyword, bc in rules.items():
+                if keyword in cat:
+                    matched = bc
+                    break
+        if matched is None and cat == "transfers":
+            continue
+        if matched is None:
+            matched = "expenses_buffer_misc"
+
+        if matched == budget_cat:
+            result.append({
+                "date":        row["date"],
+                "description": row["description"],
+                "amount":      row["amount"],
+                "account":     row["account"],
+            })
+
+    return result
 
 
 def get_actual_income_total(year, month):
