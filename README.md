@@ -6,6 +6,52 @@ Local Flask dashboard for Pratik + Nastya (Nastik). Tracks net worth, monthly bu
 
 ---
 
+## Budget Planner: Assumptions and Golden Rules
+
+Four numbers drive the monthly budget view: **Inflow, Outflow, Invested, Net Cash.**
+
+### Inflow
+- All positive transactions from non-investment accounts count as inflow
+- Paychecks, refunds, reimbursements, and one-time income (e.g. Poshmark sales) are all included
+- Excluded: CC payment credits, retirement/brokerage account transactions, and plain transfers with no keyword match
+- BFSFCU checking is disconnected from Empower - any deposits not in the CSV must be added manually
+
+### Outflow
+- All negative transactions from non-investment accounts count as outflow
+- CC payment lump sums from checking are excluded (individual charges on the CC are counted instead, avoiding double-counting)
+- Investment/retirement account purchases and trades are excluded (not real spending)
+- Transfers with no keyword match are silently dropped
+- Anything that doesn't match a category rule lands in Buffer/Misc
+
+### Invested (HYSA + Roth)
+- HYSA and Roth contributions are tracked as their own outflow categories and shown in the Invested KPI separately
+- LendingClub balance is manual - the $500/month auto-transfer is not auto-detected; add it manually each session when updating balances
+- Keywords "lending club", "lendingclub" map to HYSA; "vanguard", "schwab", "roth" map to Roth
+
+### Net Cash
+- Net cash = total inflow - total outflow (spending + savings combined)
+- When actuals exist (month is locked and has transactions): uses real transaction totals
+- When no actuals: uses planned amounts from the budget seed
+- Invested is shown separately so you can see where the cash went
+
+### Category Matching Rules
+- Keywords match transaction description first, then Empower category - first match wins
+- Order in `BUDGET_CATEGORY_RULES` in `config.py` matters: more specific rules must come before generic ones
+- Key ordering dependencies: "tesla insurance" before "tesla" (else all Tesla charges go to EV); "orchid eros" before generic dining rules
+- Unmatched expenses fall to Buffer/Misc - if Buffer is large, tune keywords in `config.py`
+- Costco and Indo China Market map to Groceries
+- Hairitage salon maps to Nastya's gifts
+- Rental insurance from BFSFCU checking is not in Empower - add manually when it hits
+
+### What Gets Manually Added Each Session
+- BFSFCU checking balance (disconnected from Empower - get from bank app)
+- LendingClub HYSA balance (+$500/month auto-transfer)
+- HealthEquity HSA balance (in Empower but "Delayed" - connection broken)
+- Any pending CC charges you know about before they settle
+- Any BFSFCU transactions (paychecks, direct debits, rent) not in the Empower CSV
+
+---
+
 ## Quick Start
 
 ```bash
@@ -13,7 +59,7 @@ cd pratik-finances-dashboard
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 python seed_budget.py   # one-time: seeds 2025-2026 budget plan
-python app.py           # visit http://localhost:5000 or http://192.168.1.133:5000
+python app.py           # visit http://localhost:5000 or http://192.168.1.186:5000
 ```
 
 **To start the server (daily use):**
@@ -33,7 +79,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 The dashboard runs on `0.0.0.0` so any device on your home WiFi can access it.
 
-**Nastya's URL:** `http://192.168.1.133:5000`
+**Nastya's URL:** `http://192.168.1.186:5000`
 
 No setup needed on her end - just open that URL in any browser while connected to home WiFi.
 
@@ -44,10 +90,10 @@ No setup needed on her end - just open that URL in any browser while connected t
 
 **Port:** Always 5000. Defined in `config.py` as `FLASK_PORT`.
 
-**IP address caveat:** `192.168.1.133` is assigned by your router via DHCP and could change
+**IP address caveat:** `192.168.1.186` is assigned by your router via DHCP and could change
 (e.g. after a router restart or if you connect from a different network first).
 To lock it permanently: log into your router admin page (usually `192.168.1.1`), find
-"DHCP Reservations" or "Static IP Assignment", and pin your laptop's MAC address to `192.168.1.133`.
+"DHCP Reservations" or "Static IP Assignment", and pin your laptop's MAC address to `192.168.1.186`.
 One-time setup, then the URL never changes.
 
 ---
@@ -421,6 +467,37 @@ As actuals accumulate, the system will:
 5. **FIRE number tracking** — at current savings rate, project time to financial independence
 
 Each month of real data makes every future projection more accurate. The goal is that by end of 2026, the system has enough calibration data to model 2028-2030 with confidence.
+
+---
+
+## Lessons Learned (2026-03-30 Session)
+
+### projected_checking Was Double-Applying the Current Month
+`get_projected_checking()` used a hardcoded base of March 2026 and summed planned cash flow from that month forward, including March itself. But once actual data is loaded, the actual checking balance already reflects March's activity - applying March's plan on top double-counted it.
+Fix: function now reads the snapshot date from `account_balances`, and only applies planned cash flow for months AFTER the snapshot. For the current month, it returns the actual balance directly.
+
+### expenses_nastya_gifts Missing from Net Cash (Planned Side)
+`nastayGiftsPlanned` was extracted in `budget.html` but never added to `totalExpensePlanned`. Actuals correctly included it, planned did not. Net cash was overstated by $520.
+Fix: added `+ nastayGiftsPlanned` to `totalExpensePlanned`.
+
+### BFSFCU Is Disconnected from Empower
+BFSFCU (checking, car note, credit cards) is not syncing with Empower. Balances in any Empower PDF screenshot will be stale (last synced 3/22/2026). Do not trust BFSFCU values from the PDF - get real balances directly from the BFSFCU app or statements before updating `account_balances`.
+
+### HealthEquity Is in Empower but Delayed
+HealthEquity shows in Empower with a broken connection ("Delayed"). Empower excludes it from the reported net worth total. We keep the manual balance ($3,313.60) in our DB - this is intentional and does not need to be a live connection.
+
+### Empower PDF Net Worth May Differ from DB for Known Reasons
+When the PDF total and our DB total differ, the usual suspects are:
+- BFSFCU accounts showing stale Empower balances (disconnected)
+- HealthEquity excluded from Empower total (Delayed status)
+- Car note balance in Empower not yet reflecting a recent payment
+Reconcile by adjusting DB values to match known real balances, not blindly matching the PDF total.
+
+### LendingClub HYSA Needs +$500 Added Manually Each Month
+LendingClub is a "Manual Bank" in Empower and does not auto-sync. The $500/month automated transfer is not reflected automatically. Each time balances are updated, check if the LendingClub balance needs +$500 added for the month's transfer.
+
+### Pending CC Charges Can Be Manually Inserted
+Charges that are pending (not yet settled/posted in Empower) will be missing from the CSV export. They can be inserted manually with `import_batch='manual-YYYY-MM-DD'` so they're easy to find. They will appear in actuals immediately since actuals are computed live from the transactions table.
 
 ---
 

@@ -472,26 +472,38 @@ def get_budget_plan_range():
 def get_projected_checking(year, month, checking_account="BFSFCU Checking"):
     """
     Projects checking account balance at the end of a given month.
-    Starts from the actual checking balance as of March 2026,
-    then adds cumulative net cash (sum of all planned amounts) for each
-    month from March 2026 through the target month.
+    Starts from the latest actual checking snapshot balance, then adds
+    planned net cash for each month AFTER the snapshot through the target month.
+    If the target month is at or before the snapshot month, returns the actual balance.
     Net cash per month = SUM(planned_amount) since income is positive, expenses negative.
     """
-    BASE_YEAR, BASE_MONTH = 2026, 3
-
     conn = get_conn()
 
-    # Get the actual checking balance (latest snapshot)
+    # Get the actual checking balance and its snapshot date
     row = conn.execute(
-        "SELECT balance FROM account_balances WHERE account=? ORDER BY snapshot_date DESC LIMIT 1",
+        "SELECT balance, snapshot_date FROM account_balances WHERE account=? ORDER BY snapshot_date DESC LIMIT 1",
         (checking_account,)
     ).fetchone()
-    start_balance = row["balance"] if row else 0.0
+    if not row:
+        conn.close()
+        return None
 
-    # Sum net cash for each month from base through target
-    # Build list of (year, month) tuples
+    start_balance = row["balance"]
+    snap_date = row["snapshot_date"]
+    snap_year = int(snap_date[:4])
+    snap_month = int(snap_date[5:7])
+
+    # If the target is at or before the snapshot month, the actual balance is the answer
+    if (year, month) <= (snap_year, snap_month):
+        conn.close()
+        return round(start_balance, 2)
+
+    # Build list of months from the month AFTER the snapshot through target
     months = []
-    y, m = BASE_YEAR, BASE_MONTH
+    y, m = snap_year, snap_month + 1
+    if m > 12:
+        m = 1
+        y += 1
     while (y, m) <= (year, month):
         months.append((y, m))
         m += 1

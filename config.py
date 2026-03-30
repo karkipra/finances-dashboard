@@ -180,15 +180,15 @@ ANTHROMIND_EQUITY = {
 
 # Data sources checklist - shown on dashboard as setup TODO card
 DATA_SOURCES = [
-    {"label": "BFSFCU Checking (4346)", "status": "connected", "notes": "$3,251 as of Mar 2026. Transactions via Empower CSV."},
-    {"label": "Lending Club HYSA", "status": "manual", "notes": "$9,723 at 4.2% APY. Not connected to Empower - update balance manually each month. +$500/month contribution."},
-    {"label": "Charles Schwab (Pratik Roth IRA)", "status": "connected", "notes": "$42,574 as of Mar 2026.", "category": "investment"},
-    {"label": "Vanguard (Pratik Roth IRA)", "status": "connected", "notes": "$13,699 as of Mar 2026.", "category": "retirement"},
-    {"label": "Vanguard (Google 401k)", "status": "connected", "notes": "$80,575 as of Mar 2026.", "category": "retirement"},
-    {"label": "American Express (1006)", "status": "partial", "notes": "$972 balance as of Mar 2026. Balance tracked. Need CC transaction CSV for spending breakdown."},
-    {"label": "FSFCU Credit Card (3048)", "status": "connected", "notes": "$130 balance as of Mar 2026."},
-    {"label": "BFSFCU Car Note", "status": "connected", "notes": "$2,423 remaining as of Mar 2026. $1,010/month - paid off Apr 2026."},
-    {"label": "Principal (IMF 401k)", "status": "manual", "notes": "~$21K as of Mar 2026. Approximate — real number via Empower later.", "category": "retirement"},
-    {"label": "Fidelity (Nastya Roth IRA)", "status": "manual", "notes": "~$17K as of Mar 2026. Approximate — real number via Empower later.", "category": "retirement"},
+    {"label": "BFSFCU Checking (4346)", "status": "connected", "notes": "$2,373 as of Mar 30 2026. Transactions via Empower CSV."},
+    {"label": "Lending Club HYSA", "status": "manual", "notes": "$9,724 at 4.2% APY. Not connected to Empower - update balance manually each month. +$500/month contribution."},
+    {"label": "Charles Schwab (Pratik Roth IRA)", "status": "connected", "notes": "$39,423 as of Mar 30 2026.", "category": "investment"},
+    {"label": "Vanguard (Pratik Roth IRA)", "status": "connected", "notes": "$12,897 as of Mar 30 2026.", "category": "retirement"},
+    {"label": "Vanguard (Google 401k)", "status": "connected", "notes": "$76,274 as of Mar 30 2026.", "category": "retirement"},
+    {"label": "American Express (1006)", "status": "partial", "notes": "$1,575 balance as of Mar 30 2026. Balance tracked. Need CC transaction CSV for spending breakdown."},
+    {"label": "FSFCU Credit Card (3048)", "status": "connected", "notes": "$130 balance as of Mar 30 2026."},
+    {"label": "BFSFCU Car Note", "status": "connected", "notes": "$1,414 remaining as of Mar 30 2026. $1,010 paid Mar 2026. Final payoff Apr 2026."},
+    {"label": "Principal (IMF 401k)", "status": "manual", "notes": "$20,623 as of Mar 30 2026. Approximate - real number via Empower later.", "category": "retirement"},
+    {"label": "Fidelity (Nastya Roth IRA)", "status": "manual", "notes": "$15,130 as of Mar 30 2026. Approximate - real number via Empower later.", "category": "retirement"},
     {"label": "Personal spending CSV", "status": "todo", "notes": "Current CSV is from Empower retirement portal only. Export full transaction history from Empower Personal Capital for groceries, dining, etc."},
 ]

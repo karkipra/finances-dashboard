@@ -135,7 +135,13 @@ async function load() {
   } else {
     asOf.textContent = 'no transaction data';
   }
-  render(_data);
+  try {
+    render(_data);
+  } catch (e) {
+    console.error('render() failed:', e);
+    document.querySelector('#expenseTable tbody').innerHTML =
+      `<tr><td colspan="4" style="color:var(--negative);padding:12px">Render error: ${e.message} — check console (F12)</td></tr>`;
+  }
 }
 
 async function lockMonth() {
@@ -400,8 +406,7 @@ function renderSummary(data, hasActuals, isCurrent) {
 
   // Total spending planned vs actual (exclude savings and one-time)
   const spendingPlanned = SUB_CATS.reduce((s, c) => s + Math.abs(plan[c.key]?.amount || 0), 0);
-  const spendingActual  = SUB_CATS.reduce((s, c) => s + (actuals[c.key] || 0), 0)
-                        + (actuals['expenses_buffer_misc'] || 0);
+  const spendingActual  = SUB_CATS.reduce((s, c) => s + (actuals[c.key] || 0), 0);
   const pct     = spendingPlanned > 0 ? Math.min(spendingActual / spendingPlanned * 100, 100) : 0;
   const over    = spendingActual > spendingPlanned;
   const barColor = over ? 'var(--red)' : pct > 85 ? '#ff9f0a' : 'var(--green)';
@@ -494,8 +499,7 @@ function render(data) {
   const spendingPlanned = subItems.length
     ? subItems.reduce((s, r) => s + r.planned, 0)
     : monthlyExpTotal;
-  const spendingActual = subItems.reduce((s, r) => s + r.actual, 0)
-    + (actuals['expenses_buffer_misc'] || 0);
+  const spendingActual = subItems.reduce((s, r) => s + r.actual, 0);
 
   // --- Expenses: Savings zone ---
   const hysa    = Math.abs(plan.hysa?.amount || 0);
@@ -511,7 +515,7 @@ function render(data) {
   const nastayGiftsActual  = actuals['expenses_nastya_gifts'] || 0;
   const nastayGiftsPlanned = Math.abs(plan.expenses_nastya_gifts?.amount || 0);
 
-  const totalExpensePlanned = spendingPlanned + savingsTotal + oneTime;
+  const totalExpensePlanned = spendingPlanned + savingsTotal + oneTime + nastayGiftsPlanned;
   const totalExpenseActual = spendingActual + savingsActual + nastayGiftsActual;
   const net = totalIncomePlanned - totalExpensePlanned;
 
@@ -587,21 +591,27 @@ function render(data) {
 
   eTbody.innerHTML = expHtml || '<tr><td colspan="2" class="empty-state">No planned expenses.</td></tr>';
 
-  // --- Net cash (income minus spending and one-time, excluding savings) ---
-  const netCash = totalIncomePlanned - totalExpensePlanned;
+  // --- Net cash: income minus spending only (savings excluded — shown in Invested KPI) ---
+  // When actuals exist, use real numbers. When planned only, use planned.
+  const netCashPlanned = totalIncomePlanned - spendingPlanned - oneTime - nastayGiftsPlanned - savingsTotal;
+  const netCashActual  = totalIncomeActual - spendingActual - nastayGiftsActual - savingsActual;
+  const netCash    = hasActuals ? netCashActual : netCashPlanned;
+  const netCashSub = hasActuals ? (isCurrent ? 'actual so far' : 'actual') : 'planned';
   const netCashCls = netCash >= 0 ? 'positive' : 'negative';
   const projChecking = data.projected_checking != null ? data.projected_checking : null;
   document.getElementById('netCashRow').innerHTML = `
     <div class="kpi-main ${netCashCls}" style="font-size:20px">${netCash >= 0 ? '+' : ''}${fmtExact(netCash)}</div>
-    <div class="kpi-sub" style="margin-top:4px;font-size:11px">lands in checking</div>
+    <div class="kpi-sub" style="margin-top:4px;font-size:11px">${netCashSub} · lands in checking</div>
     ${projChecking != null ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">~${fmt(projChecking)} in checking</div>` : ''}`;
 
-  // --- Invested (HYSA + Roth) ---
-  const investedCls = savingsTotal > 0 ? 'positive' : '';
-  const investedNote = _notes['roth'] || _notes['hysa'] || '';
+  // --- Invested (HYSA + Roth) — show actuals when available ---
+  const investedDisplay = hasActuals && savingsActual > 0 ? savingsActual : savingsTotal;
+  const investedCls  = investedDisplay > 0 ? 'positive' : '';
+  const investedSub  = hasActuals && savingsActual > 0 ? (isCurrent ? 'actual so far' : 'actual') : 'planned';
+  const investedNote = plan.roth?.notes || plan.hysa?.notes || '';
   document.getElementById('netInvestedRow').innerHTML = `
-    <div class="kpi-main ${investedCls}" style="font-size:20px">${fmtExact(savingsTotal)}</div>
-    <div class="kpi-sub" style="margin-top:4px;font-size:11px">HYSA + Roth</div>
+    <div class="kpi-main ${investedCls}" style="font-size:20px">${fmtExact(investedDisplay)}</div>
+    <div class="kpi-sub" style="margin-top:4px;font-size:11px">${investedSub} · HYSA + Roth</div>
     ${investedNote ? `<div style="margin-top:8px;font-size:12px;color:var(--green)">${investedNote}</div>` : ''}`;
 }
 
