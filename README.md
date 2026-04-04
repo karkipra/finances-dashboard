@@ -552,6 +552,9 @@ The manually added car note entry (`BFSFCU Vehicle Note To Principal`, batch=`20
 Added per-month milestone banners to the budget page. Events with `amount=0` in knowledge.yaml show as green banners at the top of the budget page for their respective month. Emoji stored as HTML entity `&#127881;` in the template (not in YAML/DB) to avoid UTF-8/JSON encoding issues on Windows. Current milestones:
 - Apr 2026: "2025 Roth IRA maxed - both Pratik & Nastya ($7,000 each, $14,000 total)"
 - May 2026: "Car note paid off - $1,010/month freed up"
+- Apr 2027: "2026 Roth IRA maxed - both Pratik & Nastya ($7,500 each, $15,000 total)"
+
+**Recurring pattern - add every April:** Each year in April, add a new `one_off_events` entry in `knowledge.yaml` with `amount: 0` marking the Roth IRA as maxed for the prior tax year. Use the deadline (Apr 15) as the date. Update the dollar amounts if the IRS contribution limit changes.
 
 ### Flask JSON Emoji Fix
 Flask's default `JSON_AS_ASCII=True` escapes emoji as unicode surrogates, rendering as garbled text in the browser. Fix: `app.config['JSON_AS_ASCII'] = False`. Additionally, milestone emoji is now hardcoded as `&#127881;` in the HTML template rather than stored in YAML/DB, removing the encoding dependency entirely.
