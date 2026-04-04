@@ -63,3 +63,11 @@ one_off_events:
   - date: "2026-04-01"
     label: "Owed taxes"
     amount: -1200
+  - date: "2026-04-04"
+    label: "2025 Roth IRA maxed - both Pratik & Nastya ($7,000 each, $14,000 total)"
+    amount: 0
+    notes: "Prior-year contributions completed. Pratik via Vanguard, Nastya via Fidelity."
+  - date: "2026-05-01"
+    label: "Car note paid off - $1,010/month freed up"
+    amount: 0
+    notes: "BFSFCU vehicle loan fully paid. Final payment April 2026."

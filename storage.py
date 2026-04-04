@@ -699,10 +699,17 @@ def get_actual_income_total(year, month):
         "roth ira", "brokerage", "401(k)", "401k",
         "designated beneficiary", "equity awards", "google llc 401",
     )
+    # Positive transactions on CC accounts are refunds/credits, not income
+    CC_ACCT_KEYS = (
+        "american express", "blue cash", "amex",
+        "costco anywhere visa", "citi",
+        "apple card",
+        "visa signature", "credit card",
+    )
 
     conn = get_conn()
     rows = conn.execute(
-        "SELECT amount, category, account FROM transactions WHERE amount>0 AND date>=? AND date<=?",
+        "SELECT amount, category, account, description FROM transactions WHERE amount>0 AND date>=? AND date<=?",
         (start, end)
     ).fetchall()
     conn.close()
@@ -711,11 +718,16 @@ def get_actual_income_total(year, month):
     for row in rows:
         cat  = (row["category"] or "").lower()
         acct = (row["account"]  or "").lower()
+        desc = (row["description"] or "").lower()
         if cat in SKIP_CATS:
             continue
         if any(kw in acct for kw in INVEST_ACCT_KEYS):
             continue
         if cat == "transfers":
+            continue
+        if any(kw in acct for kw in CC_ACCT_KEYS):
+            continue
+        if "transfer" in desc:
             continue
         total += row["amount"]
 

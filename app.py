@@ -11,6 +11,7 @@ import config
 import equity as equity_module
 
 app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False
 
 
 # --- Page routes ---

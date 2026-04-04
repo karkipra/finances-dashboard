@@ -1,6 +1,8 @@
 # Nastik Finances Dashboard
 
-> We are improving this over time. Every week we get new data, which means the financial projections will be tighter. The goal is a living system that gets smarter each month — eventually powering accurate 2-5 year plans.
+> **Core requirement:** Both Pratik and Nastya must be able to open this dashboard from any device on home WiFi at any time. Always verify LAN access works after setup or changes. See [Sharing on Home Network](#sharing-on-home-network-nastyas-phone--other-devices) below.
+
+> We are improving this over time. Every week we get new data, which means the financial projections will be tighter. The goal is a living system that gets smarter each month - eventually powering accurate 2-5 year plans.
 
 Local Flask dashboard for Pratik + Nastya (Nastik). Tracks net worth, monthly budget planned vs actual, and long-term projections. Runs at `http://localhost:5000`.
 
@@ -43,12 +45,25 @@ Four numbers drive the monthly budget view: **Inflow, Outflow, Invested, Net Cas
 - Hairitage salon maps to Nastya's gifts
 - Rental insurance from BFSFCU checking is not in Empower - add manually when it hits
 
+### BFSFCU - Empower Connection Broken
+BFSFCU (checking account 4346) is not syncing with Empower. Until reconnected, **all BFSFCU transactions must be added manually** each session:
+- Pratik's Anthromind paycheck (biweekly)
+- Nastya's UCSB paycheck (monthly)
+- Rent payment to UCSB
+- Any direct debits or deposits through BFSFCU checking
+
+Add manually with `import_batch='manual-YYYY-MM-DD'`. The Empower CSV will not contain these.
+
 ### What Gets Manually Added Each Session
-- BFSFCU checking balance (disconnected from Empower - get from bank app)
+- BFSFCU checking balance (get real balance from BFSFCU app - Empower value is stale)
+- All BFSFCU transactions (see above - connection broken)
 - LendingClub HYSA balance (+$500/month auto-transfer)
 - HealthEquity HSA balance (in Empower but "Delayed" - connection broken)
 - Any pending CC charges you know about before they settle
-- Any BFSFCU transactions (paychecks, direct debits, rent) not in the Empower CSV
+- Apple Card transactions not in Empower - Pratik will flag these ad hoc (e.g. parking, one-off charges). Add with `import_batch='manual-YYYY-MM-DD'`.
+
+### Transactions to Remove After Ingest
+- **UC Pathway fees/gain-loss** (e.g. "Uc Pathway Xx60 - Fees", "Uc Pathway Xx60 - Realizedgainloss"): internal Fidelity admin fees inside the UC Defined Contribution account (0988). Not charged to a card, already reflected in the account balance. Delete from `transactions` table after ingest - they only affect net worth via the balance snapshot, not budget actuals.
 
 ---
 
@@ -59,7 +74,7 @@ cd pratik-finances-dashboard
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 python seed_budget.py   # one-time: seeds 2025-2026 budget plan
-python app.py           # visit http://localhost:5000 or http://192.168.1.186:5000
+python app.py           # visit http://localhost:5000 or http://192.168.1.133:5000
 ```
 
 **To start the server (daily use):**
@@ -77,44 +92,55 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## Sharing on Home Network (Nastya's Phone / Other Devices)
 
-The dashboard runs on `0.0.0.0` so any device on your home WiFi can access it.
+The dashboard runs on `0.0.0.0` so any device on home WiFi can reach it.
 
-**Nastya's URL:** `http://192.168.1.186:5000`
+**Nastya's URL:** `http://192.168.1.133:5000`
 
 No setup needed on her end - just open that URL in any browser while connected to home WiFi.
 
 **Requirements:**
-- Your laptop must be on and the server running (`python app.py`)
+- Pratik's laptop must be on and the server running (`python app.py`)
 - Both devices must be on the same WiFi network
 - Does not work on cellular or outside the home network
 
 **Port:** Always 5000. Defined in `config.py` as `FLASK_PORT`.
 
-**IP address caveat:** `192.168.1.186` is assigned by your router via DHCP and could change
-(e.g. after a router restart or if you connect from a different network first).
-To lock it permanently: log into your router admin page (usually `192.168.1.1`), find
-"DHCP Reservations" or "Static IP Assignment", and pin your laptop's MAC address to `192.168.1.186`.
+**Windows Firewall (one-time setup, required for LAN access):**
+Run this once in an elevated/admin terminal:
+```
+netsh advfirewall firewall add rule name="Flask 5000 - Finances Dashboard" dir=in action=allow protocol=TCP localport=5000
+```
+Without this, Windows blocks incoming connections even though Flask is listening.
+
+**IP address caveat:** `192.168.1.133` is assigned by the router via DHCP and could change after a restart.
+To lock it permanently: log into the router admin page (usually `192.168.1.1`), find
+"DHCP Reservations" or "Static IP Assignment", and pin the laptop's MAC address to `192.168.1.133`.
 One-time setup, then the URL never changes.
 
 ---
 
 ## Weekly Workflow
 
-Each week, drop new exports into `imports/` and run ingest:
+Each week, drop new exports into `data/` and ask Claude Code to ingest them:
+
+**What to export from Empower each week:**
+1. Transactions CSV: empower.com -> All Transactions -> Export (pick date range covering last week+)
+2. Net worth PDF: take a FireShot (full-page screenshot saved as PDF) of the Empower Personal Dashboard net worth page
+
+**Drop both files into `data/` then run ingest:**
 
 ```bash
-# 1. Drop files into imports/:
-#    - Empower transactions CSV (from empower.com → All Transactions → Export)
-#    - Empower balances CSV (from empower.com → Net Worth → Export)
-#    - Amex / Chase CC statement CSVs (for spending actuals)
-#    - Screenshots of accounts not in Empower (e.g. Lending Club HYSA)
-
-# 2. Run ingest
-python ingest.py
-
-# 3. Open dashboard
-python app.py
+# Claude Code handles the ingest, or run manually:
+python ingest.py   # processes files from imports/ - Claude moves them there first
 ```
+
+**What Claude does during ingest:**
+- Copies the new CSV and PDF from `data/` to `imports/`
+- Runs `python ingest.py` (imports transactions, deduplicates)
+- Reads the Empower PDF screenshot visually and saves account balances to the DB
+- Recomputes net worth
+
+**Note:** BFSFCU accounts (Checking, Car Note, credit cards) show "Reconnect/Loading" in Empower and are stale. Always get the real BFSFCU Checking balance from the BFSFCU app and update manually. HealthEquity shows "Delayed" - manual balance is kept in DB as-is.
 
 Ingest automatically:
 - Imports transactions and deduplicates
@@ -211,12 +237,11 @@ The system gets smarter every time you upload. More data = tighter projections.
 | Phase 1 | Every Friday | Mar 2026 - ~Jun 2026 |
 | Phase 2 | 1st and 15th of month | ~Jul 2026 onward |
 
-**What to drop into `imports/` each upload:**
-- Empower transactions CSV (All Transactions export — includes CC transactions)
-- Empower balances CSV (Net Worth export)
-- Screenshots of accounts not in Empower (e.g. Lending Club HYSA balance)
+**What to drop into `data/` each upload:**
+- Empower transactions CSV (All Transactions export - includes CC transactions)
+- FireShot PDF of Empower net worth page (full-page screenshot saved as PDF)
 
-Then: `python ingest.py`
+Then ask Claude Code to ingest, or run `python ingest.py` manually (after moving files to `imports/`).
 
 **Source of truth for CC transactions:** Export from Empower (not directly from Amex/Chase).
 Empower consolidates all accounts in one CSV, so no need for separate per-card exports.
@@ -357,6 +382,12 @@ For angel investments with no vesting: set `cliff_date = purchase_date`, `cliff_
 - [ ] Tune `expenses_buffer_misc` — should shrink as rules get more specific
 - [ ] Validate dedup: confirm no double-counting after first Empower CSV upload
 
+### Actual Income Filtering (`get_actual_income_total` in `storage.py`)
+- [ ] **Fix inflated income total** — currently overcounts by ~$1,400+/month. Actual income = paychecks + one-time income events + misc reimbursements only. Must exclude:
+  - Plain transfers (description contains "transfer" — e.g. "External Deposit ... Transfer" from checking)
+  - CC refund/return credits (positive transactions on CC accounts like Amex, Citi, Apple Card)
+  - Do NOT add transfers or CC credits manually — they are not income
+
 ### Budget
 - [ ] Lock March 2026 budget (first live month)
 - [ ] After March closes: review actuals vs plan, adjust April sub-category amounts if needed
@@ -467,6 +498,69 @@ As actuals accumulate, the system will:
 5. **FIRE number tracking** — at current savings rate, project time to financial independence
 
 Each month of real data makes every future projection more accurate. The goal is that by end of 2026, the system has enough calibration data to model 2028-2030 with confidence.
+
+---
+
+## Lessons Learned (2026-04-04 Session)
+
+### Weekly Ingest Workflow Updated
+Files are dropped into `data/` (not `imports/`). Claude Code handles the ingest: copies the two new files (transactions CSV + Empower FireShot PDF) to `imports/`, runs `python ingest.py`, then reads the PDF visually to extract and save account balances manually. The ingest script only handles CSVs and budget PDFs - net worth screenshots require manual balance entry via `storage.save_balances()`.
+
+### BFSFCU Disconnected - All Transactions Manual
+BFSFCU (Joint Checking 4346) is not syncing with Empower. All deposits must be added manually each session:
+- Pratik's Anthromind paycheck (biweekly, ~$1,281.82)
+- Nastya's UCSB paycheck (monthly, ~$3,767.22)
+- Rent, direct debits, any other BFSFCU activity
+Use `import_batch='manual-YYYY-MM-DD'` for all manual inserts.
+
+### UC Pathway Fees Must Be Deleted After Ingest
+"Uc Pathway Xx60 - Fees" and "Uc Pathway Xx60 - Realizedgainloss" appear in the Empower CSV from the UC Defined Contribution account (0988). These are internal Fidelity admin fees - not real spending. Delete them from `transactions` after every ingest.
+
+### Apple Card Not in Empower - Ad Hoc Manual Entry
+Nastya's Apple Card is not linked in Empower. Pratik will flag individual Apple Card charges ad hoc (e.g. parking). Add with `import_batch='manual-YYYY-MM-DD'`. Do not import Apple Card CSV alongside Empower CSV for overlapping date ranges - causes duplicates since account names differ.
+
+### Manual Entries Create Duplicates When Real Data Arrives
+Pattern seen multiple times: a transaction is manually added (`manual-*` batch), then the real Empower CSV import contains the same transaction with a slightly different description, bypassing the dedup key `(date, account, description, amount)`. Always check for manual batch entries before ingesting a CSV that covers the same date range. Known duplicates fixed this session:
+- Car note: manual `BFSFCU Vehicle Note To Principal` (id=695) vs Empower `Regular Payment Transfer...To Principal` (id=742) - deleted 695
+- Rental insurance: manual `Rental Insurance` (id=696) vs Empower `State Farm` (id=786) - deleted 696
+- Rent (UCSB): id=98 already in DB, no duplicate found
+
+### Actual Income Inflated - `get_actual_income_total` Fix
+`get_actual_income_total()` in `storage.py` was including plain transfers and CC refund credits as income. Fixed by adding two exclusion filters:
+- `CC_ACCT_KEYS`: excludes positive transactions from CC accounts (Amex, Citi, Apple Card, Visa Signature) - these are refunds, not income
+- `"transfer" in desc`: excludes plain transfers (e.g. "External Deposit ... Transfer")
+Correct March income after fix: $6,467.86 (was $7,882.48). Real income = paychecks + one-time events + misc reimbursements only.
+
+### Two Mystery Transfers in March (Unresolved)
+id=785 ($1,000, Mar 24, "External Deposit Seef8a38cdcdaef - Transfer") and id=765 ($306, Mar 25) are in the DB but their source is unknown. Correctly excluded from income by the transfer filter. Origin not yet confirmed.
+
+### Car Note Double-Counted in March Budget
+The manually added car note entry (`BFSFCU Vehicle Note To Principal`, batch=`2026-03-30-manual`) and the real Empower entry (`Regular Payment Transfer...To Principal`, batch=`2026-04-04`) both matched the `"to principal"` budget category rule, doubling March `expenses_car_loan` to $2,020. Fixed by deleting the manual entry (id=695).
+
+### Budget Plan Updates (April 2026)
+- `expenses_groceries`: $600 -> $540
+- `expenses_personal_misc`: $75 -> $45
+- HYSA transaction added manually ($500, Apr 1) since BFSFCU disconnected
+- Roth contribution added manually ($2,250, Apr 1) - 2025 Roth maxed for both Pratik and Nastya
+
+### Budget Plan Extended to April 2027
+- May 2026 - Apr 2027: seeded with lean budget estimates (same as Jun 2026 template)
+- Roth contributions updated to $1,364/month for all months May 2026 - Apr 2027 (new $7,500 target)
+- Jan-Apr 2027 were not previously seeded; added from Jun 2026 lean template
+
+### Milestone Celebration Banners
+Added per-month milestone banners to the budget page. Events with `amount=0` in knowledge.yaml show as green banners at the top of the budget page for their respective month. Emoji stored as HTML entity `&#127881;` in the template (not in YAML/DB) to avoid UTF-8/JSON encoding issues on Windows. Current milestones:
+- Apr 2026: "2025 Roth IRA maxed - both Pratik & Nastya ($7,000 each, $14,000 total)"
+- May 2026: "Car note paid off - $1,010/month freed up"
+
+### Flask JSON Emoji Fix
+Flask's default `JSON_AS_ASCII=True` escapes emoji as unicode surrogates, rendering as garbled text in the browser. Fix: `app.config['JSON_AS_ASCII'] = False`. Additionally, milestone emoji is now hardcoded as `&#127881;` in the HTML template rather than stored in YAML/DB, removing the encoding dependency entirely.
+
+### Planned Cashflow Sliver
+Added a thin bar between the KPI cards and the Income section showing planned inflow minus total outflow. Uses rounded `fmt()` (not `fmtExact`) to keep numbers short. `white-space:nowrap` keeps it on one line. Grid position: `budget-cashflow { grid-column:1; grid-row:2 }`.
+
+### Budget Grid Equal-Height Columns
+`align-self: stretch` on `.budget-income` and `.budget-expenses` ensures the two columns always match height. KPIs, cashflow sliver, and lock card use `align-self: start` to keep their natural height.
 
 ---
 

@@ -19,6 +19,8 @@
   Data collection started March 2026. Figures shown for earlier months are planning estimates only, not based on actual transactions.
 </div>
 
+<div id="milestoneBanner" style="display:none;margin-bottom:10px"></div>
+
 <!-- Monthly summary bar (shown when actuals exist) -->
 <div id="actualsSummary" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px"></div>
 
@@ -34,6 +36,18 @@
       <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Invested</div>
       <div id="netInvestedRow"></div>
     </div>
+  </div>
+
+  <!-- Planned cashflow sliver -->
+  <div id="plannedCashflowBar" class="budget-cashflow" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;font-size:12px;gap:12px">
+    <span style="color:var(--muted)">Planned cashflow</span>
+    <span style="display:flex;gap:6px;align-items:center;white-space:nowrap">
+      <span id="pcfInflow" style="color:var(--positive)"></span>
+      <span style="color:var(--muted)">&#8722;</span>
+      <span id="pcfOutflow" style="color:var(--negative)"></span>
+      <span style="color:var(--muted)">=</span>
+      <span id="pcfNet" style="font-weight:600"></span>
+    </span>
   </div>
 
   <!-- Income -->
@@ -100,7 +114,10 @@
 {% block scripts %}
 <script>
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-let year = 2026, month = 3;
+const TODAY = new Date();
+const CURRENT_YEAR  = TODAY.getFullYear();
+const CURRENT_MONTH = TODAY.getMonth() + 1;
+let year = CURRENT_YEAR, month = CURRENT_MONTH;
 let _data = null;
 
 document.getElementById('prevMonth').addEventListener('click', () => {
@@ -111,10 +128,6 @@ document.getElementById('nextMonth').addEventListener('click', () => {
   month++; if (month > 12) { month = 1; year++; }
   load();
 });
-
-const TODAY = new Date();
-const CURRENT_YEAR  = TODAY.getFullYear();
-const CURRENT_MONTH = TODAY.getMonth() + 1;
 let _expandCache = {};
 let _expandOpen  = {};
 
@@ -141,6 +154,28 @@ async function load() {
     console.error('render() failed:', e);
     document.querySelector('#expenseTable tbody').innerHTML =
       `<tr><td colspan="4" style="color:var(--negative);padding:12px">Render error: ${e.message} — check console (F12)</td></tr>`;
+  }
+
+  // Milestone celebrations for this month
+  const evResp = await fetch('/api/events');
+  const allEvents = await evResp.json();
+  const monthStart = `${year}-${String(month).padStart(2,'0')}-01`;
+  const monthEnd   = `${year}-${String(month).padStart(2,'0')}-31`;
+  const milestones = allEvents.filter(e =>
+    e.event_date >= monthStart && e.event_date <= monthEnd &&
+    e.amount === 0
+  );
+  const banner = document.getElementById('milestoneBanner');
+  if (milestones.length > 0) {
+    banner.style.display = '';
+    banner.innerHTML = milestones.map(e =>
+      `<div style="padding:10px 14px;background:rgba(48,209,88,0.08);border:1px solid rgba(48,209,88,0.3);border-radius:8px;font-size:13px;color:var(--positive);margin-bottom:6px">
+        &#127881; ${e.label}${e.notes ? `<span style="color:var(--muted);font-size:11px;margin-left:8px">${e.notes}</span>` : ''}
+      </div>`
+    ).join('');
+  } else {
+    banner.style.display = 'none';
+    banner.innerHTML = '';
   }
 }
 
@@ -590,6 +625,13 @@ function render(data) {
   }
 
   eTbody.innerHTML = expHtml || '<tr><td colspan="2" class="empty-state">No planned expenses.</td></tr>';
+
+  // --- Planned cashflow sliver ---
+  const pcfNet = totalIncomePlanned - totalExpensePlanned;
+  const pcfCls = pcfNet >= 0 ? 'positive' : 'negative';
+  document.getElementById('pcfInflow').textContent  = '+' + fmt(totalIncomePlanned);
+  document.getElementById('pcfOutflow').textContent = fmt(totalExpensePlanned);
+  document.getElementById('pcfNet').innerHTML = `<span class="${pcfCls}">${pcfNet >= 0 ? '+' : ''}${fmt(pcfNet)}</span>`;
 
   // --- Net cash: income minus spending only (savings excluded — shown in Invested KPI) ---
   // When actuals exist, use real numbers. When planned only, use planned.
