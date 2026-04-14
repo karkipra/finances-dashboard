@@ -22,8 +22,14 @@
   </div>
 </div>
 
-<div class="card">
-  <canvas id="nwChart" height="90"></canvas>
+<div class="card chart-card" style="position:relative">
+  <button class="model-trigger" id="modelTrigger" title="Model net worth">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,11 4,7 7,9 10,4 13,2"/></svg>
+    Model
+  </button>
+  <div id="chartContainer">
+    <canvas id="nwChart" height="90"></canvas>
+  </div>
 </div>
 
 {% if balances %}
@@ -34,12 +40,124 @@
 <div class="section-title">Equity</div>
 <div id="equitySection"></div>
 
+<!-- Model Net Worth slide-out panel -->
+<div class="model-panel" id="modelPanel">
+  <div class="mp-header">
+    <span class="mp-title">Model Net Worth</span>
+    <button class="mp-close" id="modelClose" aria-label="Close">&#x2715;</button>
+  </div>
+  <div class="mp-body">
+
+    <div class="mp-section">
+      <div class="mp-section-label">DURATION</div>
+      <div class="mp-param">
+        <div class="mp-param-header">
+          <span class="mp-label">Years out</span>
+          <span class="mp-val-display" id="d-duration">5 yr</span>
+        </div>
+        <input type="range" class="mp-slider" id="s-duration" value="5" min="1" max="20" step="1">
+      </div>
+    </div>
+
+    <div class="mp-section">
+      <div class="mp-section-label">MONTHLY SAVINGS</div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">HYSA</span>
+          <div class="mp-num-wrap"><span class="mp-unit">$</span><input type="number" class="mp-number" id="p-hysa" value="500" min="0" max="2000" step="50"></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-hysa" value="500" min="0" max="2000" step="50">
+      </div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">Pratik Roth</span>
+          <div class="mp-num-wrap"><span class="mp-unit">$</span><input type="number" class="mp-number" id="p-pratik-roth" value="583" min="0" max="2000" step="50"></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-pratik-roth" value="583" min="0" max="2000" step="50">
+      </div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">Nastya Roth</span>
+          <div class="mp-num-wrap"><span class="mp-unit">$</span><input type="number" class="mp-number" id="p-nastya-roth" value="583" min="0" max="2000" step="50"></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-nastya-roth" value="583" min="0" max="2000" step="50">
+      </div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">401k / Mega Backdoor</span>
+          <div class="mp-num-wrap"><span class="mp-unit">$</span><input type="number" class="mp-number" id="p-k401" value="0" min="0" max="5000" step="50"></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-k401" value="0" min="0" max="5000" step="50">
+      </div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">Bonds</span>
+          <div class="mp-num-wrap"><span class="mp-unit">$</span><input type="number" class="mp-number" id="p-bonds" value="0" min="0" max="2000" step="50"></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-bonds" value="0" min="0" max="2000" step="50">
+      </div>
+      <div class="mp-subtotal">Total: <span id="mp-savings-total">$0</span>/mo</div>
+    </div>
+
+    <div class="mp-section">
+      <div class="mp-section-label">GROWTH RATES</div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">Stocks / Retirement</span>
+          <div class="mp-num-wrap"><input type="number" class="mp-number mp-number-pct" id="p-stocks" value="7.0" min="0" max="15" step="0.5"><span class="mp-unit">%</span></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-stocks" value="7.0" min="0" max="15" step="0.5">
+      </div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">HYSA APY</span>
+          <div class="mp-num-wrap"><input type="number" class="mp-number mp-number-pct" id="p-hysa-apy" value="4.2" min="0" max="8" step="0.1"><span class="mp-unit">%</span></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-hysa-apy" value="4.2" min="0" max="8" step="0.1">
+      </div>
+      <div class="mp-param">
+        <div class="mp-param-header"><span class="mp-label">Bonds yield</span>
+          <div class="mp-num-wrap"><input type="number" class="mp-number mp-number-pct" id="p-bonds-yield" value="4.5" min="0" max="8" step="0.1"><span class="mp-unit">%</span></div>
+        </div>
+        <input type="range" class="mp-slider" id="s-bonds-yield" value="4.5" min="0" max="8" step="0.1">
+      </div>
+    </div>
+
+    <div class="mp-section">
+      <div class="mp-section-label" style="display:flex;align-items:center;gap:8px">
+        INCOME CHANGE
+        <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer">
+          <input type="checkbox" id="incomeToggle" style="cursor:pointer">
+          <span style="font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0">enable</span>
+        </label>
+      </div>
+      <div id="incomeFields" style="display:none">
+        <div class="mp-income-row">
+          <span class="mp-label">From</span>
+          <input type="month" class="mp-income-input" id="p-income-from" value="2026-05">
+        </div>
+        <div class="mp-income-row">
+          <span class="mp-label">New monthly net</span>
+          <div class="mp-num-wrap"><span class="mp-unit">$</span><input type="number" class="mp-number mp-income-input" id="p-income-amount" value="2552" min="0" step="100"></div>
+        </div>
+        <div class="income-warning hidden" id="incomeWarning">Below total savings rate</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mp-result" id="mpResult">
+    <div class="mp-result-hint" id="mpResultHint">Adjust sliders to project net worth</div>
+    <div class="mp-result-loading hidden" id="mpResultLoading">Computing...</div>
+    <div class="hidden" id="mpResultDisplay">
+      <div class="mp-result-label">In <span id="mpYears">5</span> years</div>
+      <div class="mp-result-nw" id="mpEndNW"></div>
+      <div class="mp-result-growth" id="mpGrowth"></div>
+    </div>
+  </div>
+</div>
+<div class="model-overlay" id="modelOverlay"></div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
 let allData = [];
 let chart = null;
+let projectionPoints = null;
 
 async function init() {
   const resp = await fetch('/api/net-worth');
@@ -65,7 +183,7 @@ async function render(months) {
   }
 
   if (data.length === 0) {
-    document.getElementById('nwChart').parentElement.innerHTML =
+    document.getElementById('chartContainer').innerHTML =
       '<p class="empty-state chart-empty">No net worth data yet. Import your Empower CSV/screenshot first.</p>';
     return;
   }
@@ -121,11 +239,10 @@ async function render(months) {
 
   if (chart) {
     chart.destroy();
-    // Restore canvas if it was replaced by empty-state
-    const parent = document.querySelector('.card');
-    parent.innerHTML = '<canvas id="nwChart" height="90"></canvas>';
+    document.getElementById('chartContainer').innerHTML = '<canvas id="nwChart" height="90"></canvas>';
   }
   chart = new Chart(document.getElementById('nwChart'), cfg);
+  if (projectionPoints) addProjectionToChart();
 }
 
 init();
@@ -410,6 +527,229 @@ async function renderEquity() {
 
 renderEquity();
 
+
+// ---- Model Panel ----
+
+let modelDefaults = null;
+let projDebounce  = null;
+
+function openModelPanel() {
+  document.getElementById('modelPanel').classList.add('open');
+  document.getElementById('modelOverlay').classList.add('show');
+  if (!modelDefaults) loadModelDefaults();
+}
+
+function closeModelPanel() {
+  document.getElementById('modelPanel').classList.remove('open');
+  document.getElementById('modelOverlay').classList.remove('show');
+  clearProjection();
+}
+
+async function loadModelDefaults() {
+  const d = await fetch('/api/model-defaults').then(r => r.json());
+  modelDefaults = d;
+  setSliderParam('hysa',        d.savings.hysa);
+  setSliderParam('pratik-roth', d.savings.pratik_roth);
+  setSliderParam('nastya-roth', d.savings.nastya_roth);
+  setSliderParam('k401',        d.savings.k401);
+  setSliderParam('bonds',       d.savings.bonds);
+  setSliderParam('stocks',      d.growth_rates.stocks);
+  setSliderParam('hysa-apy',    d.growth_rates.hysa_apy);
+  setSliderParam('bonds-yield', d.growth_rates.bonds_yield);
+  updateSavingsTotal();
+  scheduleProjection();
+}
+
+function setSliderParam(id, val) {
+  const s = document.getElementById('s-' + id);
+  const p = document.getElementById('p-' + id);
+  if (s) s.value = val;
+  if (p) p.value = val;
+}
+
+function getNumParam(id) {
+  const el = document.getElementById('p-' + id);
+  return el ? parseFloat(el.value) || 0 : 0;
+}
+
+function getDuration() {
+  const el = document.getElementById('s-duration');
+  return el ? parseInt(el.value) || 5 : 5;
+}
+
+function updateSavingsTotal() {
+  const total = getNumParam('hysa') + getNumParam('pratik-roth') + getNumParam('nastya-roth') + getNumParam('k401') + getNumParam('bonds');
+  const el = document.getElementById('mp-savings-total');
+  if (el) el.textContent = '$' + Math.round(total).toLocaleString();
+  // Income warning
+  const toggle = document.getElementById('incomeToggle');
+  const warn   = document.getElementById('incomeWarning');
+  if (toggle && toggle.checked && warn) {
+    warn.classList.toggle('hidden', getNumParam('income-amount') >= total);
+  }
+}
+
+function scheduleProjection() {
+  clearTimeout(projDebounce);
+  projDebounce = setTimeout(runProjection, 280);
+}
+
+async function runProjection() {
+  if (!modelDefaults) return;
+  const dur = getDuration();
+  document.getElementById('mpYears').textContent = dur;
+  document.getElementById('mpResultHint').classList.add('hidden');
+  document.getElementById('mpResultLoading').classList.remove('hidden');
+  document.getElementById('mpResultDisplay').classList.add('hidden');
+
+  const incomeEnabled = document.getElementById('incomeToggle').checked;
+  const body = {
+    duration_years:     dur,
+    starting_net_worth: modelDefaults.starting_net_worth,
+    starting_date:      modelDefaults.starting_date,
+    retirement_balance: modelDefaults.retirement_balance,
+    hysa_balance:       modelDefaults.hysa_balance,
+    savings: {
+      hysa:        getNumParam('hysa'),
+      pratik_roth: getNumParam('pratik-roth'),
+      nastya_roth: getNumParam('nastya-roth'),
+      k401:        getNumParam('k401'),
+      bonds:       getNumParam('bonds'),
+    },
+    growth_rates: {
+      stocks:      getNumParam('stocks'),
+      hysa_apy:    getNumParam('hysa-apy'),
+      bonds_yield: getNumParam('bonds-yield'),
+    },
+    income_change: incomeEnabled ? {
+      enabled:         true,
+      from_date:       (document.getElementById('p-income-from').value || '2026-05') + '-01',
+      new_monthly_net: getNumParam('income-amount'),
+    } : { enabled: false },
+  };
+
+  try {
+    const res = await fetch('/api/model-projection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(r => r.json());
+
+    projectionPoints = res.points;
+    document.getElementById('mpResultLoading').classList.add('hidden');
+    document.getElementById('mpResultDisplay').classList.remove('hidden');
+
+    const endNW   = res.end_net_worth;
+    const startNW = modelDefaults.starting_net_worth;
+    const delta   = endNW - startNW;
+    const pct     = startNW > 0 ? ((delta / startNW) * 100).toFixed(0) : 0;
+    document.getElementById('mpEndNW').textContent = '$' + Math.round(endNW).toLocaleString();
+    const sign = delta >= 0 ? '+' : '';
+    document.getElementById('mpGrowth').textContent = sign + '$' + Math.round(delta).toLocaleString() + ' (' + sign + pct + '%)';
+    document.getElementById('mpGrowth').style.color = delta >= 0 ? 'var(--green)' : 'var(--red)';
+
+    if (res.income_warning) document.getElementById('incomeWarning').classList.remove('hidden');
+
+    addProjectionToChart();
+  } catch(e) {
+    document.getElementById('mpResultLoading').classList.add('hidden');
+    document.getElementById('mpResultHint').classList.remove('hidden');
+    document.getElementById('mpResultHint').textContent = 'Error computing projection';
+  }
+}
+
+function addProjectionToChart() {
+  if (!chart || !projectionPoints || projectionPoints.length < 2) return;
+
+  const lastHistDate = chart.data.labels[chart.data.labels.length - 1] || '';
+  const futurePoints = projectionPoints.filter(p => p.date > lastHistDate);
+  if (!futurePoints.length) return;
+
+  const histData  = [...chart.data.datasets[0].data];
+  const lastNWVal = histData[histData.length - 1];
+  const histLen   = chart.data.labels.length;
+
+  // Remove any existing projection dataset
+  chart.data.datasets = chart.data.datasets.filter(ds => ds.label !== 'Projected');
+
+  // Extend labels
+  chart.data.labels = [...chart.data.labels, ...futurePoints.map(p => p.date)];
+
+  // Pad historical dataset with nulls for future slots
+  chart.data.datasets[0].data = [...histData, ...new Array(futurePoints.length).fill(null)];
+
+  // Projection: null for all history except last point, then future values
+  const projData = [...new Array(histLen - 1).fill(null), lastNWVal, ...futurePoints.map(p => p.net_worth)];
+  chart.data.datasets.push({
+    label:           'Projected',
+    data:            projData,
+    borderColor:     'rgba(99,102,241,0.9)',
+    borderWidth:     2,
+    borderDash:      [6, 4],
+    backgroundColor: 'transparent',
+    fill:            false,
+    tension:         0.3,
+    pointRadius:     0,
+    pointHoverRadius: 3,
+  });
+
+  // Recalculate Y axis
+  const allVals = [...histData, ...futurePoints.map(p => p.net_worth)].filter(v => v !== null);
+  if (allVals.length) {
+    const mn  = Math.min(...allVals);
+    const mx  = Math.max(...allVals);
+    const pad = (mx - mn) * 0.15 || 5000;
+    chart.options.scales.y.min = Math.floor((mn - pad) / 5000) * 5000;
+    chart.options.scales.y.max = Math.ceil((mx  + pad) / 5000) * 5000;
+  }
+  chart.options.scales.x.ticks.maxTicksLimit = window.innerWidth < 500 ? 4 : 10;
+  chart.update();
+}
+
+function clearProjection() {
+  projectionPoints = null;
+  if (!chart) return;
+  const activeBtn = document.querySelector('.btn-period.active');
+  render(activeBtn ? parseInt(activeBtn.dataset.months) : 3);
+}
+
+// Wire up trigger + close + overlay
+document.getElementById('modelTrigger').addEventListener('click', openModelPanel);
+document.getElementById('modelClose').addEventListener('click', closeModelPanel);
+document.getElementById('modelOverlay').addEventListener('click', closeModelPanel);
+
+// Duration slider
+document.getElementById('s-duration').addEventListener('input', function() {
+  document.getElementById('d-duration').textContent = this.value + ' yr';
+  scheduleProjection();
+});
+
+// Savings + growth rate slider <-> number input pairs
+['hysa','pratik-roth','nastya-roth','k401','bonds','stocks','hysa-apy','bonds-yield'].forEach(id => {
+  const slider = document.getElementById('s-' + id);
+  const input  = document.getElementById('p-' + id);
+  if (slider) slider.addEventListener('input', () => {
+    if (input) input.value = slider.value;
+    updateSavingsTotal();
+    scheduleProjection();
+  });
+  if (input) input.addEventListener('input', () => {
+    if (slider) slider.value = input.value;
+    updateSavingsTotal();
+    scheduleProjection();
+  });
+});
+
+// Income change toggle + fields
+document.getElementById('incomeToggle').addEventListener('change', function() {
+  document.getElementById('incomeFields').style.display = this.checked ? 'block' : 'none';
+  updateSavingsTotal();
+  scheduleProjection();
+});
+['p-income-from','p-income-amount'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => { updateSavingsTotal(); scheduleProjection(); });
+});
 
 </script>
 {% endblock %}

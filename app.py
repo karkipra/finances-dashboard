@@ -345,6 +345,123 @@ def api_transactions():
     return jsonify(transactions)
 
 
+@app.route("/api/model-defaults")
+def api_model_defaults():
+    import sqlite3
+    conn = sqlite3.connect(str(config.DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    latest = storage.get_latest_net_worth()
+
+    retirement_row = conn.execute("""
+        SELECT COALESCE(SUM(b.balance), 0) AS total
+        FROM account_balances b
+        INNER JOIN (
+            SELECT account, MAX(snapshot_date) AS ld FROM account_balances GROUP BY account
+        ) l ON b.account = l.account AND b.snapshot_date = l.ld
+        WHERE b.account_type IN ('retirement','investment') AND b.balance > 0
+    """).fetchone()
+
+    hysa_row = conn.execute("""
+        SELECT COALESCE(SUM(b.balance), 0) AS total
+        FROM account_balances b
+        INNER JOIN (
+            SELECT account, MAX(snapshot_date) AS ld FROM account_balances GROUP BY account
+        ) l ON b.account = l.account AND b.snapshot_date = l.ld
+        WHERE b.account_type = 'savings' AND b.balance > 0
+    """).fetchone()
+
+    conn.close()
+
+    return jsonify({
+        "starting_net_worth": round(latest["net_worth"]) if latest else 0,
+        "starting_date": latest["date"] if latest else date.today().isoformat(),
+        "savings": {
+            "hysa":        config.HYSA_MONTHLY_CONTRIBUTION,
+            "pratik_roth": 583,
+            "nastya_roth": 583,
+            "k401":        0,
+            "bonds":       0,
+        },
+        "growth_rates": {
+            "stocks":      7.0,
+            "hysa_apy":    round(config.HYSA_APY * 100, 1),
+            "bonds_yield": 4.5,
+        },
+        "retirement_balance": round(retirement_row["total"]),
+        "hysa_balance":       round(hysa_row["total"]),
+    })
+
+
+@app.route("/api/model-projection", methods=["POST"])
+def api_model_projection():
+    data = request.get_json()
+
+    duration_years     = int(data.get("duration_years", 5))
+    savings            = data.get("savings", {})
+    growth_rates       = data.get("growth_rates", {})
+    income_change      = data.get("income_change") or {}
+    starting_nw        = float(data.get("starting_net_worth", 0))
+    starting_date_str  = data.get("starting_date", date.today().isoformat())
+    retirement_balance = float(data.get("retirement_balance", 0))
+    hysa_balance       = float(data.get("hysa_balance", 0))
+
+    hysa_contrib  = float(savings.get("hysa",        0))
+    pratik_roth   = float(savings.get("pratik_roth", 0))
+    nastya_roth   = float(savings.get("nastya_roth", 0))
+    k401          = float(savings.get("k401",        0))
+    bonds_contrib = float(savings.get("bonds",       0))
+
+    stocks_rate  = float(growth_rates.get("stocks",      7.0)) / 100
+    hysa_apy     = float(growth_rates.get("hysa_apy",    4.2)) / 100
+    bonds_yield  = float(growth_rates.get("bonds_yield", 4.5)) / 100
+
+    total_savings = hysa_contrib + pratik_roth + nastya_roth + k401 + bonds_contrib
+
+    income_warning = False
+    if income_change.get("enabled"):
+        new_income = float(income_change.get("new_monthly_net", 0))
+        if new_income < total_savings:
+            income_warning = True
+
+    try:
+        start = date.fromisoformat(starting_date_str)
+    except ValueError:
+        start = date.today()
+
+    bonds_balance  = 0.0
+    current_nw     = starting_nw
+    duration_months = duration_years * 12
+
+    points = [{"date": start.isoformat(), "net_worth": round(current_nw)}]
+
+    for i in range(1, duration_months + 1):
+        total_m  = (start.month - 1) + i
+        yr       = start.year + total_m // 12
+        mo       = total_m % 12 + 1
+        pt_date  = date(yr, mo, min(start.day, 28)).isoformat()
+
+        stock_growth = retirement_balance * (stocks_rate / 12)
+        hysa_growth  = hysa_balance       * (hysa_apy   / 12)
+        bonds_growth = bonds_balance      * (bonds_yield / 12)
+
+        retirement_balance += (pratik_roth + nastya_roth + k401) + stock_growth
+        hysa_balance       += hysa_contrib  + hysa_growth
+        bonds_balance      += bonds_contrib + bonds_growth
+
+        current_nw += stock_growth + hysa_growth + bonds_growth
+        current_nw += hysa_contrib + pratik_roth + nastya_roth + k401 + bonds_contrib
+
+        points.append({"date": pt_date, "net_worth": round(current_nw)})
+
+    return jsonify({
+        "points":         points,
+        "end_net_worth":  round(current_nw),
+        "months":         duration_months,
+        "income_warning": income_warning,
+    })
+
+
 if __name__ == "__main__":
     storage.init_db()
     app.run(host="0.0.0.0", debug=config.FLASK_DEBUG, port=config.FLASK_PORT)
