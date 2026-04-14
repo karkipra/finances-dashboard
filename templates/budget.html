@@ -26,42 +26,47 @@
 
 <div class="budget-layout">
 
-  <!-- KPIs: Net cash + Invested -->
-  <div class="budget-kpis" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="card" style="text-align:center;padding:16px 12px">
-      <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Net cash</div>
-      <div id="netCashRow"></div>
+  <!-- Left column -->
+  <div class="budget-left">
+
+    <!-- KPIs: Net cash + Invested -->
+    <div class="budget-kpis" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="card" style="text-align:center;padding:16px 12px">
+        <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Net cash</div>
+        <div id="netCashRow"></div>
+      </div>
+      <div class="card" style="text-align:center;padding:16px 12px">
+        <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Invested</div>
+        <div id="netInvestedRow"></div>
+      </div>
     </div>
-    <div class="card" style="text-align:center;padding:16px 12px">
-      <div class="card-title" style="text-align:center;margin-bottom:6px;font-size:12px">Invested</div>
-      <div id="netInvestedRow"></div>
+
+    <!-- Planned cashflow sliver -->
+    <div id="plannedCashflowBar" style="background:rgba(180,130,0,0.1);border:1px solid rgba(180,130,0,0.5);border-radius:8px;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;font-size:12px;gap:12px">
+      <span style="color:#a07800;font-weight:500">Planned cashflow</span>
+      <span style="display:flex;gap:6px;align-items:center;white-space:nowrap">
+        <span id="pcfInflow" style="color:var(--positive)"></span>
+        <span style="color:var(--muted)">&#8722;</span>
+        <span id="pcfOutflow" style="color:var(--negative)"></span>
+        <span style="color:var(--muted)">=</span>
+        <span id="pcfNet" style="font-weight:600"></span>
+      </span>
     </div>
+
+    <!-- Income -->
+    <div class="budget-income card">
+      <div class="card-title">Income</div>
+      <table class="data-table" id="incomeTable">
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Lock -->
+    <div class="budget-lock" id="lockCard"></div>
+
   </div>
 
-  <!-- Planned cashflow sliver -->
-  <div id="plannedCashflowBar" class="budget-cashflow" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;font-size:12px;gap:12px">
-    <span style="color:var(--muted)">Planned cashflow</span>
-    <span style="display:flex;gap:6px;align-items:center;white-space:nowrap">
-      <span id="pcfInflow" style="color:var(--positive)"></span>
-      <span style="color:var(--muted)">&#8722;</span>
-      <span id="pcfOutflow" style="color:var(--negative)"></span>
-      <span style="color:var(--muted)">=</span>
-      <span id="pcfNet" style="font-weight:600"></span>
-    </span>
-  </div>
-
-  <!-- Income -->
-  <div class="budget-income card">
-    <div class="card-title">Income</div>
-    <table class="data-table" id="incomeTable">
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <!-- Lock -->
-  <div class="budget-lock" id="lockCard"></div>
-
-  <!-- Expenses -->
+  <!-- Right column: Expenses -->
   <div class="budget-expenses card" style="padding:14px 16px">
     <div class="card-title" style="margin-bottom:4px">Expenses</div>
     <table class="data-table" id="expenseTable">

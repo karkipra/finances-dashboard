@@ -474,13 +474,15 @@ body {
   display: grid;
   grid-template-columns: 1fr 1.6fr;
   gap: 8px;
-  align-items: start;
+  align-items: stretch;
 }
-.budget-kpis     { grid-column: 1; grid-row: 1; align-self: start; }
-.budget-cashflow { grid-column: 1; grid-row: 2; align-self: start; }
-.budget-income   { grid-column: 1; grid-row: 3; align-self: stretch; }
-.budget-lock     { grid-column: 1; grid-row: 4; align-self: start; }
-.budget-expenses { grid-column: 2; grid-row: 1 / 5; align-self: stretch; }
+.budget-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.budget-income { flex: 1; }
+.budget-expenses { align-self: stretch; }
 
 /* ---- Equity card responsive classes ---- */
 .equity-inner {
@@ -514,11 +516,8 @@ body {
   .kpi-main { font-size: 30px; }
   .card { padding: 14px; }
   .budget-layout { grid-template-columns: 1fr; }
-  .budget-kpis     { grid-column: 1; grid-row: 1; }
-  .budget-cashflow { grid-column: 1; grid-row: 2; }
-  .budget-income   { grid-column: 1; grid-row: 3; }
-  .budget-expenses { grid-column: 1; grid-row: 4; }
-  .budget-lock     { grid-column: 1; grid-row: 5; }
+  .budget-left  { flex: none; }
+  .budget-income { flex: none; }
   .accounts-grid { grid-template-columns: 1fr 1fr; }
   .equity-inner { flex-direction: column; gap: 16px; }
   .equity-value-panel {

@@ -27,7 +27,8 @@ Four numbers drive the monthly budget view: **Inflow, Outflow, Invested, Net Cas
 
 ### Invested (HYSA + Roth)
 - HYSA and Roth contributions are tracked as their own outflow categories and shown in the Invested KPI separately
-- LendingClub balance is manual - the $500/month auto-transfer is not auto-detected; add it manually each session when updating balances
+- **LendingClub balance is ALWAYS wrong in Empower - Empower does not connect to LendingClub.** Never use the value from the Empower PDF/screenshot for LendingClub. The Empower dashboard shows a stale value that never updates.
+- Each session: take the last known real LendingClub balance from the DB and add $500 for each month that has passed since the last update. Update manually in account_balances.
 - Keywords "lending club", "lendingclub" map to HYSA; "vanguard", "schwab", "roth" map to Roth
 
 ### Net Cash
@@ -45,6 +46,27 @@ Four numbers drive the monthly budget view: **Inflow, Outflow, Invested, Net Cas
 - Hairitage salon maps to Nastya's gifts
 - Rental insurance from BFSFCU checking is not in Empower - add manually when it hits
 
+### American Express - Two Cards, One Account
+
+Pratik and Nastya each have a physical Amex card but they are on the **same account** with one shared balance.
+
+- `Blue Cash Everyday ( ) - Ending in 1006` - Pratik's card
+- `Blue Cash Everyday ( ) - Ending in 1022` - Nastya's supplementary card
+
+**Balance rule:** The 1006 balance from Empower = the true total balance for the whole account. Never add 1006 + 1022 together - that double-counts. If a 1022 balance entry ever appears in account_balances, delete it.
+
+**Transaction rule:** Ingest transactions from both cards - they are different charges (no duplicates). Empower's CSV may not include Nastya's 1022 transactions. When that happens, export directly from Amex and add manually. The Amex CSV format has columns: Date, Description, Card Member, Account # (-41006 or -41022), Amount.
+
+**Known Empower quirk:** Empower sometimes assigns Nastya's 1022 transactions to the 1006 account in the CSV. When ingesting the Amex direct export, check for duplicates by date+amount+description across both account numbers and delete the 1006 version (keep the 1022 one - it's the accurate attribution).
+
+**AT&T:** Maps to `expenses_internet`. Config has both `"at&t"` and `"att bill"` keywords to catch all description formats.
+
+**Amex direct export workflow:**
+1. Download activity CSV from americanexpress.com
+2. Drop in `data/` and ask Claude to review before ingesting
+3. Skip: autopay payments, reimbursed charges (confirm with Pratik), prior-month personal items already covered
+4. Nastya's 1022 charges not in Empower: add manually with `import_batch='manual-amex-YYYY-MM-DD'`
+
 ### BFSFCU - Empower Connection Broken
 BFSFCU (checking account 4346) is not syncing with Empower. Until reconnected, **all BFSFCU transactions must be added manually** each session:
 - Pratik's Anthromind paycheck (biweekly)
@@ -54,11 +76,26 @@ BFSFCU (checking account 4346) is not syncing with Empower. Until reconnected, *
 
 Add manually with `import_batch='manual-YYYY-MM-DD'`. The Empower CSV will not contain these.
 
+### Broken / Delayed Accounts - Flag Every Session
+
+During every ingest, explicitly flag any account that is disconnected, stale, or showing "Delayed" in Empower. Do not silently carry forward a stale balance. Always surface this to Pratik so he can provide the real number.
+
+**Current known broken accounts (as of Apr 2026):**
+
+| Account | Status | Action |
+|---------|--------|--------|
+| BFSFCU Checking (4346) | Not syncing - Empower shows $0 | Get real balance from BFSFCU app each session |
+| LendingClub HYSA | Not connected - Empower value is permanently stale | Add $500/month manually from last known real balance |
+| HealthEquity HSA | "Delayed" in Empower | Carry forward last known balance until Pratik provides update |
+| FSFCU Visa Signature (Nastya) | Intermittent | Confirm balance each session |
+
+**Rule:** If any of these accounts has not been updated with a real value this session, say so explicitly before closing out. Never let a stale Empower value silently overwrite a manually-set correct balance (the LendingClub $9,723 overwrite is the example of what not to do).
+
 ### What Gets Manually Added Each Session
 - BFSFCU checking balance (get real balance from BFSFCU app - Empower value is stale)
 - All BFSFCU transactions (see above - connection broken)
-- LendingClub HYSA balance (+$500/month auto-transfer)
-- HealthEquity HSA balance (in Empower but "Delayed" - connection broken)
+- LendingClub HYSA balance (+$500/month from last known real balance - never use Empower value)
+- HealthEquity HSA balance (carry forward or update if Pratik provides new number)
 - Any pending CC charges you know about before they settle
 - Apple Card transactions not in Empower - Pratik will flag these ad hoc (e.g. parking, one-off charges). Add with `import_batch='manual-YYYY-MM-DD'`.
 
@@ -119,34 +156,39 @@ One-time setup, then the URL never changes.
 
 ---
 
-## Weekly Workflow
+## Weekly Workflow (Claude reads files manually)
 
-Each week, drop new exports into `data/` and ask Claude Code to ingest them:
+Drop new export files in `data/` and open a Claude Code session. Claude reads each file
+directly and shows a confirmation summary before writing anything to the DB.
 
-**What to export from Empower each week:**
-1. Transactions CSV: empower.com -> All Transactions -> Export (pick date range covering last week+)
-2. Net worth PDF: take a FireShot (full-page screenshot saved as PDF) of the Empower Personal Dashboard net worth page
+**What to collect each session:**
+1. Empower transactions CSV: empower.com -> All Transactions -> Export
+2. Amex direct export: americanexpress.com -> Statements & Activity -> Download (CSV)
+3. BFSFCU balance: get real number from BFSFCU app (Empower does not sync)
+4. Any manual transactions you know about (Apple Card, subscriptions paid, etc.)
 
-**Drop both files into `data/` then run ingest:**
+**What Claude does (with confirmation before each write):**
+1. Reads each file and reports what it found
+2. Presents a pre-write summary: accounts, balances, transactions to add, items to flag
+3. Waits for Pratik to confirm or correct
+4. Writes to DB only after confirmation
+5. Recomputes net worth and prints final summary
 
+**The 7 hard rules Claude follows every session:**
+1. LendingClub: never use Empower value. Take last DB balance + $500/month since last update.
+2. Amex 1022 (Nastya): add transactions, never add the 1022 balance to net worth.
+3. Dupe check before every insert: query by date + amount + description.
+4. Always skip CC payments: AMEX EPAYMENT, CITI AUTOPAY, APPLECARD GSBANK, VISA/MC PAYMENT.
+5. Roth: only count the Vanguard buy. Never count the checking transfer out as a separate Roth entry.
+6. Broken accounts: BFSFCU Checking (ask Pratik), LendingClub (add $500), HealthEquity (carry forward).
+7. Reimbursed charges: always ask before including, never assume.
+
+**For Empower CSV only (programmatic option):**
 ```bash
-# Claude Code handles the ingest, or run manually:
-python ingest.py   # processes files from imports/ - Claude moves them there first
+python ingest.py           # import Empower CSV from imports/, archive after
+python ingest.py --dry-run  # preview without writing
 ```
-
-**What Claude does during ingest:**
-- Copies the new CSV and PDF from `data/` to `imports/`
-- Runs `python ingest.py` (imports transactions, deduplicates)
-- Reads the Empower PDF screenshot visually and saves account balances to the DB
-- Recomputes net worth
-
-**Note:** BFSFCU accounts (Checking, Car Note, credit cards) show "Reconnect/Loading" in Empower and are stale. Always get the real BFSFCU Checking balance from the BFSFCU app and update manually. HealthEquity shows "Delayed" - manual balance is kept in DB as-is.
-
-Ingest automatically:
-- Imports transactions and deduplicates
-- Updates account balances and recomputes net worth
-- Archives processed files to `imports/processed/YYYY-MM-DD/`
-- Suggests knowledge base additions (new subscriptions, one-off events)
+Drop the CSV in `imports/` before running. Everything else - balances, Amex, BFSFCU - is handled manually by Claude.
 
 ---
 

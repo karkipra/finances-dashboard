@@ -4,6 +4,7 @@ Then open:  http://localhost:5000
 """
 
 from datetime import date, timedelta
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 import storage
 import forecast as forecast_module
@@ -242,6 +243,81 @@ def api_equity():
     as_of_str = request.args.get("as_of")
     as_of = date.fromisoformat(as_of_str) if as_of_str else None
     return jsonify(equity_module.get_all_equity(as_of))
+
+
+@app.route("/upload")
+def upload_page():
+    return render_template("upload.html")
+
+
+@app.route("/api/upload", methods=["POST"])
+def api_upload():
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    f = request.files["file"]
+    if not f.filename:
+        return jsonify({"error": "Empty filename"}), 400
+    dest = config.DATA_DIR / f.filename
+    f.save(str(dest))
+    return jsonify({"status": "ok", "filename": f.filename, "path": str(dest)})
+
+
+@app.route("/api/upload/pending")
+def api_upload_pending():
+    skip = {".gitkeep", "finances.db"}
+    data_dir = config.DATA_DIR
+    files = []
+    for p in sorted(data_dir.iterdir()):
+        if p.is_file() and p.name not in skip and not p.name.startswith("."):
+            files.append({
+                "name": p.name,
+                "size_kb": round(p.stat().st_size / 1024, 1),
+                "ext": p.suffix.lower(),
+            })
+    return jsonify(files)
+
+
+@app.route("/api/upload/history")
+def api_upload_history():
+    import sqlite3
+    conn = sqlite3.connect(str(config.DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    # Transaction batches
+    txn_batches = conn.execute("""
+        SELECT import_batch, COUNT(*) as count, MIN(date) as start_date, MAX(date) as end_date
+        FROM transactions
+        WHERE import_batch IS NOT NULL
+        GROUP BY import_batch
+        ORDER BY import_batch DESC
+    """).fetchall()
+
+    # Balance snapshots
+    bal_batches = conn.execute("""
+        SELECT import_batch, snapshot_date, COUNT(*) as count
+        FROM account_balances
+        WHERE import_batch IS NOT NULL
+        GROUP BY import_batch, snapshot_date
+        ORDER BY snapshot_date DESC
+    """).fetchall()
+
+    conn.close()
+
+    # Merge into unified history keyed by batch
+    batches = {}
+    for r in txn_batches:
+        b = r["import_batch"]
+        batches.setdefault(b, {"batch": b, "transactions": 0, "balances": 0, "txn_range": None, "snapshot_date": None})
+        batches[b]["transactions"] = r["count"]
+        batches[b]["txn_range"] = f"{r['start_date']} to {r['end_date']}"
+    for r in bal_batches:
+        b = r["import_batch"]
+        batches.setdefault(b, {"batch": b, "transactions": 0, "balances": 0, "txn_range": None, "snapshot_date": None})
+        batches[b]["balances"] = r["count"]
+        batches[b]["snapshot_date"] = r["snapshot_date"]
+
+    history = sorted(batches.values(), key=lambda x: x["batch"], reverse=True)
+    return jsonify(history)
 
 
 @app.route("/api/setup-status")

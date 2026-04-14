@@ -8,6 +8,7 @@ load_dotenv(PROJECT_DIR / ".env")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 SONNET_MODEL = "claude-sonnet-4-20250514"
 
+DATA_DIR = PROJECT_DIR / "data"
 DB_PATH = PROJECT_DIR / "data" / "finances.db"
 IMPORTS_DIR = PROJECT_DIR / "imports"
 KNOWLEDGE_FILE = PROJECT_DIR / "knowledge.yaml"
@@ -85,6 +86,7 @@ BUDGET_CATEGORY_RULES = {
     "tesla":              "expenses_ev_charging",
     # Internet (no generic "internet" keyword - banks use it for wire transfers)
     "at&t":               "expenses_internet",
+    "att bill":           "expenses_internet",
     "xfinity":            "expenses_internet",
     "comcast":            "expenses_internet",
     # Entertainment (movies, plays, theaters)
@@ -102,6 +104,7 @@ BUDGET_CATEGORY_RULES = {
     "playstation":        "expenses_subscriptions",
     "overleaf":           "expenses_subscriptions",
     "otree":              "expenses_subscriptions",
+    "heroku":             "expenses_subscriptions",
     "hbomax":             "expenses_subscriptions",
     "hbo max":            "expenses_subscriptions",
     # Healthcare
@@ -134,6 +137,7 @@ BUDGET_CATEGORY_RULES = {
     "marshalls":          "expenses_nastya_gifts",
     "sephora":            "expenses_nastya_gifts",
     # Personal / misc
+    "franchise tax":      "expenses_personal_misc",
     "amazon":             "expenses_personal_misc",
     "target":             "expenses_personal_misc",
     "haircut":            "expenses_personal_misc",
