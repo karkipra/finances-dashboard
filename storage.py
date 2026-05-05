@@ -261,7 +261,9 @@ def recompute_net_worth():
         for b in balances:
             bal = b["balance"]
             atype = (b["account_type"] or "").lower()
-            if atype in ("credit", "loan", "mortgage") or bal < 0:
+            if atype == "credit":
+                pass  # CC balances excluded - paid monthly, timing artifact only
+            elif atype in ("loan", "mortgage") or (bal < 0 and atype not in ("credit",)):
                 total_liabilities += abs(bal)
             else:
                 total_assets += bal
@@ -556,6 +558,28 @@ def get_month_status(year, month):
     if row:
         return {"locked": bool(row["locked"]), "locked_at": row["locked_at"]}
     return {"locked": False, "locked_at": None}
+
+
+def get_month_notes(year, month):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT notes FROM budget_month_status WHERE year=? AND month=?",
+        (year, month)
+    ).fetchone()
+    conn.close()
+    return row["notes"] if row else ""
+
+
+def save_month_notes(year, month, notes):
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO budget_month_status (year, month, notes)
+           VALUES (?,?,?)
+           ON CONFLICT(year, month) DO UPDATE SET notes=excluded.notes""",
+        (year, month, notes)
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_actuals_by_budget_category(year, month):

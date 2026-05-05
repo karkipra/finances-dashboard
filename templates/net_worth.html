@@ -268,21 +268,24 @@ function classifyAccount(b) {
 }
 
 const PAID_OFF_LOANS = [
-  { account: 'Nastya - Grinnell Student Loans', original: 13500 },
-  { account: 'Pratik - Grinnell Student Loans', original: 15500 },
-  { account: 'Pratik - Earnest Student Loans',  original: 6000  },
+  { account: 'Nastya - Grinnell Student Loans', original: 13500, type: 'student loan' },
+  { account: 'Pratik - Grinnell Student Loans', original: 15500, type: 'student loan' },
+  { account: 'Pratik - Earnest Student Loans',  original: 6000,  type: 'student loan' },
+  { account: 'BFSFCU Car Note',                 original: 54000, type: 'car loan'     },
 ];
 
 function renderAccounts() {
   const section = document.getElementById('accountsSection');
   if (!section || !BALANCES.length) return;
 
-  // Group (exclude credit cards)
+  // Group (exclude credit cards and accounts already in PAID_OFF_LOANS)
+  const paidOffNames = new Set(PAID_OFF_LOANS.map(l => l.account));
   const groups = {};
   for (const b of BALANCES) {
     const name = (b.account || '').toLowerCase();
     const type = (b.account_type || '').toLowerCase();
     if (type.includes('credit') || name.includes('credit')) continue;
+    if (paidOffNames.has(b.account)) continue;
     const g = classifyAccount(b);
     if (!groups[g]) groups[g] = [];
     groups[g].push(b);
@@ -313,7 +316,7 @@ function renderAccounts() {
       if (b._paid_off) {
         html += `<div class="account-card" style="border-color:rgba(52,199,89,0.35);background:rgba(52,199,89,0.04)">
           <div class="acct-name">${b.account}</div>
-          <div class="acct-type">student loan</div>
+          <div class="acct-type">${b.type || 'loan'}</div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
             <span style="font-size:18px">🎉</span>
             <div>

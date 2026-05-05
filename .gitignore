@@ -1,7 +1,11 @@
 .env
 data/finances.db
+data/*.csv
+data/*.pdf
+data/archive/
 imports/
 __pycache__/
 *.pyc
 *.pyo
+*.stackdump
 .DS_Store

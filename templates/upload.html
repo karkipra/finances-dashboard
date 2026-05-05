@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Upload - Nastik Finances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Upload</h1>
+  <span style="font-size:12px;color:var(--muted)">Files save to <code style="font-size:11px">data/</code></span>
+</div>
+
+<!-- Upload drop zone -->
+<div class="card" style="margin-bottom:12px">
+  <div class="card-title">Drop Files for Next Ingest</div>
+  <div id="dropZone" style="border:2px dashed var(--border);border-radius:8px;padding:32px 16px;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:12px">
+    <div style="font-size:28px;margin-bottom:8px">&#128196;</div>
+    <div style="font-size:14px;font-weight:500;margin-bottom:4px">Click to select or drag files here</div>
+    <div style="font-size:12px;color:var(--muted)">Empower transactions CSV + FireShot PDF &nbsp;&middot;&nbsp; Saves to <code>data/</code></div>
+    <input type="file" id="fileInput" multiple accept=".csv,.pdf,.png,.jpg,.jpeg" style="display:none">
+  </div>
+  <div id="uploadStatus" style="font-size:13px;min-height:20px"></div>
+</div>
+
+<!-- Pending files -->
+<div class="card" style="margin-bottom:12px">
+  <div class="card-title-row">
+    <div class="card-title">Pending Files <span id="pendingCount" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
+    <button class="btn-toggle" onclick="loadPending()" style="font-size:12px;color:var(--muted)">refresh</button>
+  </div>
+  <div id="pendingList" style="margin-top:8px"></div>
+</div>
+
+<!-- Ingest history -->
+<div class="card" style="margin-bottom:12px">
+  <div class="card-title">Ingest History</div>
+  <table class="data-table" style="margin-top:8px">
+    <thead>
+      <tr>
+        <th>Batch</th>
+        <th class="right">Transactions</th>
+        <th>Transaction dates</th>
+        <th class="right">Balance rows</th>
+        <th>Snapshot date</th>
+      </tr>
+    </thead>
+    <tbody id="historyRows">
+      <tr><td colspan="5" class="empty-state">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Data sources -->
+<div class="card">
+  <div class="card-title">Data Sources</div>
+  <table class="data-table" style="margin-top:8px">
+    <thead>
+      <tr><th>Account / Source</th><th>Status</th><th>Notes</th></tr>
+    </thead>
+    <tbody id="sourcesRows">
+      <tr><td colspan="3" class="empty-state">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_ICON = {
+  connected: '<span class="badge badge-green">Connected</span>',
+  manual:    '<span class="badge badge-yellow">Manual</span>',
+  partial:   '<span class="badge badge-yellow">Partial</span>',
+  todo:      '<span class="badge badge-red">TODO</span>',
+};
+
+// ---- Upload ----
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const statusEl  = document.getElementById('uploadStatus');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--blue)'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border)'; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.style.borderColor = 'var(--border)';
+  uploadFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => uploadFiles(Array.from(fileInput.files)));
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = `Uploading ${files.length} file(s)...`;
+  const results = [];
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const resp = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await resp.json();
+      results.push(data.error ? `${file.name}: ${data.error}` : `${file.name} saved`);
+    } catch(e) {
+      results.push(`${file.name}: upload failed`);
+    }
+  }
+  statusEl.style.color = 'var(--positive)';
+  statusEl.textContent = results.join('  ·  ');
+  fileInput.value = '';
+  loadPending();
+}
+
+// ---- Pending files ----
+async function loadPending() {
+  const resp = await fetch('/api/upload/pending');
+  const files = await resp.json();
+  const countEl = document.getElementById('pendingCount');
+  const listEl  = document.getElementById('pendingList');
+  countEl.textContent = files.length ? `(${files.length})` : '(none)';
+  if (!files.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--muted);margin:0">No files waiting — drop files above, then ask Claude to ingest.</p>';
+    return;
+  }
+  const EXT_ICON = { '.csv': '&#128202;', '.pdf': '&#128196;', '.png': '&#128247;', '.jpg': '&#128247;', '.jpeg': '&#128247;' };
+  listEl.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${files.map(f => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(10,132,255,0.06);border:1px solid rgba(10,132,255,0.15);border-radius:6px;font-size:13px">
+          <span>${EXT_ICON[f.ext] || '&#128196;'} &nbsp;${f.name}</span>
+          <span style="color:var(--muted);font-size:11px">${f.size_kb} KB</span>
+        </div>`).join('')}
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Ready to ingest &mdash; ask Claude Code to ingest these files.</p>`;
+}
+
+// ---- Ingest history ----
+async function loadHistory() {
+  const resp = await fetch('/api/upload/history');
+  const history = await resp.json();
+  const tbody = document.getElementById('historyRows');
+  if (!history.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No history yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = history.map(h => {
+    const batchLabel = h.batch.startsWith('manual') ?
+      `<span style="color:var(--muted)">${h.batch}</span>` :
+      `<strong>${h.batch}</strong>`;
+    return `<tr>
+      <td>${batchLabel}</td>
+      <td class="right">${h.transactions > 0 ? h.transactions : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px;color:var(--muted)">${h.txn_range || '—'}</td>
+      <td class="right">${h.balances > 0 ? h.balances : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px;color:var(--muted)">${h.snapshot_date || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- Data sources ----
+async function loadSources() {
+  const resp = await fetch('/api/setup-status');
+  const sources = await resp.json();
+  const tbody = document.getElementById('sourcesRows');
+  tbody.innerHTML = sources.map(s => `
+    <tr>
+      <td>${s.label}</td>
+      <td>${STATUS_ICON[s.status] || s.status}</td>
+      <td class="muted" style="font-size:12px">${s.notes || ''}</td>
+    </tr>`).join('');
+}
+
+loadPending();
+loadHistory();
+loadSources();
+</script>
+{% endblock %}

@@ -67,8 +67,12 @@ one_off_events:
     label: "2025 Roth IRA maxed - both Pratik & Nastya ($7,000 each, $14,000 total)"
     amount: 0
     notes: "Prior-year contributions completed. Pratik via Vanguard, Nastya via Fidelity."
-  - date: "2027-04-01"
+  - date: "2027-03-01"
     label: "2026 Roth IRA maxed - both Pratik & Nastya ($7,500 each, $15,000 total)"
+    amount: 0
+    notes: "Prior-year contributions completed. Pratik via Vanguard, Nastya via Fidelity."
+  - date: "2028-03-01"
+    label: "2027 Roth IRA maxed - both Pratik & Nastya ($7,500 each, $15,000 total)"
     amount: 0
     notes: "Prior-year contributions completed. Pratik via Vanguard, Nastya via Fidelity."
   - date: "2026-05-01"

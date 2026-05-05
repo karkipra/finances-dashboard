@@ -75,6 +75,17 @@
   </div>
 
 </div>
+
+<!-- Notes section -->
+<div class="card" style="margin-top:14px;padding:14px 16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <span class="card-title" style="margin:0">Notes</span>
+    <span id="notesSaveStatus" style="font-size:11px;color:var(--muted)"></span>
+  </div>
+  <textarea id="monthNotes" rows="4"
+    placeholder="Add notes for this month..."
+    style="width:100%;box-sizing:border-box;background:var(--input-bg,var(--card-bg));color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;outline:none"></textarea>
+</div>
 {% endblock %}
 
 {% block styles %}
@@ -182,6 +193,10 @@ async function load() {
     banner.style.display = 'none';
     banner.innerHTML = '';
   }
+
+  // Load notes for this month
+  const notesEl = document.getElementById('monthNotes');
+  notesEl.value = _data.month_notes || '';
 }
 
 async function lockMonth() {
@@ -404,11 +419,14 @@ function dividerRow(label, planned, actual, cls, showActuals) {
       <td class="right ${cls}">${fmtExact(planned)}</td>
     </tr>`;
   }
+  const diff = actual - planned;
+  const diffStr = diff >= 0 ? `+${fmtExact(diff)}` : `-${fmtExact(Math.abs(diff))}`;
+  const diffCls = diff <= 0 ? 'positive' : 'negative';
   return `<tr style="border-top:1px solid var(--border);font-weight:600">
     <td>${label}</td>
     <td class="right ${cls}">${fmtExact(planned)}</td>
     <td class="right ${cls}">${fmtExact(actual)}</td>
-    <td></td>
+    <td class="right ${diffCls}" style="font-size:12px">${diffStr}</td>
   </tr>`;
 }
 
@@ -555,8 +573,9 @@ function render(data) {
   const nastayGiftsActual  = actuals['expenses_nastya_gifts'] || 0;
   const nastayGiftsPlanned = Math.abs(plan.expenses_nastya_gifts?.amount || 0);
 
+  const oneTimeActual = actuals['one_time_expense'] || 0;
   const totalExpensePlanned = spendingPlanned + savingsTotal + oneTime + nastayGiftsPlanned;
-  const totalExpenseActual = spendingActual + savingsActual + nastayGiftsActual;
+  const totalExpenseActual = spendingActual + savingsActual + nastayGiftsActual + oneTimeActual;
   const net = totalIncomePlanned - totalExpensePlanned;
 
   // --- Build expense table ---
@@ -663,5 +682,44 @@ function render(data) {
 }
 
 load();
+
+// Notes: auto-save on blur, bullet-point helpers
+(function() {
+  const ta = document.getElementById('monthNotes');
+  const status = document.getElementById('notesSaveStatus');
+  let saveTimer = null;
+
+  function schedSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      await fetch('/api/budget-notes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({year, month, notes: ta.value})
+      });
+      status.textContent = 'saved';
+      setTimeout(() => { status.textContent = ''; }, 1500);
+    }, 600);
+  }
+
+  // Start with a bullet if empty on first focus
+  ta.addEventListener('focus', () => {
+    if (ta.value === '') ta.value = '- ';
+  });
+
+  // Auto-continue bullet list on Enter
+  ta.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const lines = ta.value.split('\n');
+    const last = lines[lines.length - 1];
+    if (last.match(/^- /)) {
+      e.preventDefault();
+      ta.value += '\n- ';
+    }
+  });
+
+  ta.addEventListener('input', schedSave);
+  ta.addEventListener('blur', schedSave);
+})();
 </script>
 {% endblock %}

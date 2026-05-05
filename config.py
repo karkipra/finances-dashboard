@@ -72,6 +72,10 @@ BUDGET_CATEGORY_RULES = {
     # Dining
     "doordash":           "expenses_dining",
     "uber eats":          "expenses_dining",
+    "uber":               "expenses_dining",
+    "jack in the box":    "expenses_dining",
+    "petros":             "expenses_dining",
+    "european deli":      "expenses_dining",
     "tst*":               "expenses_dining",
     "ls drift":           "expenses_dining",
     "hilton":             "expenses_dining",
@@ -90,6 +94,7 @@ BUDGET_CATEGORY_RULES = {
     "xfinity":            "expenses_internet",
     "comcast":            "expenses_internet",
     # Entertainment (movies, plays, theaters)
+    "disney":             "expenses_entertainment",
     "metropolitan theatres": "expenses_entertainment",
     "garvin theatre":     "expenses_entertainment",
     "ucsb assoc":         "expenses_entertainment",
@@ -117,6 +122,7 @@ BUDGET_CATEGORY_RULES = {
     # Pets
     "catandbirds":        "expenses_pets",
     "cat and bird":       "expenses_pets",
+    "behemoth":           "expenses_pets",
     "chewy":              "expenses_pets",
     "embrace pet":        "expenses_pets",
     "petco":              "expenses_pets",
@@ -130,18 +136,20 @@ BUDGET_CATEGORY_RULES = {
     # Car loan
     "to principal":       "expenses_car_loan",
     # Nastya gifts / personal shopping
-    "nastya gift":        "expenses_nastya_gifts",
-    "alpha thrift":       "expenses_nastya_gifts",
-    "spanx":              "expenses_nastya_gifts",
-    "lingerie":           "expenses_nastya_gifts",
-    "marshalls":          "expenses_nastya_gifts",
-    "sephora":            "expenses_nastya_gifts",
+    "nastya gift":        "expenses_personal_misc",
+    "alpha thrift":       "expenses_personal_misc",
+    "spanx":              "expenses_personal_misc",
+    "lingerie":           "expenses_personal_misc",
+    "marshalls":          "expenses_personal_misc",
+    "sephora":            "expenses_personal_misc",
+    "nail":               "expenses_personal_misc",
     # Personal / misc
     "franchise tax":      "expenses_personal_misc",
+    "economist":          "one_time_expense",
     "amazon":             "expenses_personal_misc",
-    "target":             "expenses_personal_misc",
+    "target":             "expenses_groceries",
     "haircut":            "expenses_personal_misc",
-    "hairitage":          "expenses_nastya_gifts",
+    "hairitage":          "expenses_personal_misc",
     "salon":              "expenses_personal_misc",
     # Savings (for HYSA/Roth contributions appearing in bank transactions)
     "hysa":               "hysa",

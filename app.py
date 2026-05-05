@@ -199,6 +199,7 @@ def api_budget_plan():
     data["is_current_month"] = (year == today.year and month == today.month)
     data["latest_transaction_date"] = storage.get_latest_transaction_date()
     data["projected_checking"] = storage.get_projected_checking(year, month)
+    data["month_notes"] = storage.get_month_notes(year, month) or ""
     return jsonify(data)
 
 
@@ -218,6 +219,13 @@ def api_lock_month():
     body = request.get_json()
     storage.lock_month(body["year"], body["month"])
     return jsonify({"status": "locked"})
+
+
+@app.route("/api/budget-notes", methods=["POST"])
+def api_budget_notes():
+    body = request.get_json()
+    storage.save_month_notes(body["year"], body["month"], body.get("notes", ""))
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/budget-plan/update", methods=["POST"])
