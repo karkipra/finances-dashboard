@@ -79,6 +79,11 @@ BUDGET_CATEGORY_RULES = {
     "tst*":               "expenses_dining",
     "ls drift":           "expenses_dining",
     "hilton":             "expenses_dining",
+    "handlebar":          "expenses_dining",
+    "rori":               "expenses_dining",
+    "tenaya":             "expenses_dining",
+    "sama sama":          "expenses_dining",
+    "susana otalvaro":    "expenses_dining",
     "restaurant":         "expenses_dining",
     "dining":             "expenses_dining",
     # Car insurance — must come before plain "tesla" rule
@@ -122,6 +127,7 @@ BUDGET_CATEGORY_RULES = {
     # Pets
     "catandbirds":        "expenses_pets",
     "cat and bird":       "expenses_pets",
+    "cat and b":          "expenses_pets",
     "behemoth":           "expenses_pets",
     "chewy":              "expenses_pets",
     "embrace pet":        "expenses_pets",
@@ -133,6 +139,7 @@ BUDGET_CATEGORY_RULES = {
     "katelyn carano":     "expenses_fitness",
     "aerial":             "expenses_fitness",
     "gym":                "expenses_fitness",
+    "clean":              "expenses_fitness",
     # Car loan
     "to principal":       "expenses_car_loan",
     # Nastya gifts / personal shopping
@@ -143,6 +150,9 @@ BUDGET_CATEGORY_RULES = {
     "marshalls":          "expenses_personal_misc",
     "sephora":            "expenses_personal_misc",
     "nail":               "expenses_personal_misc",
+    "magic hour":         "expenses_personal_misc",
+    "urban outfitters":   "expenses_personal_misc",
+    "milliken market":    "expenses_groceries",
     # Personal / misc
     "franchise tax":      "expenses_personal_misc",
     "economist":          "one_time_expense",

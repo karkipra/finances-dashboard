@@ -322,7 +322,7 @@ Transaction drill-down: Every category row has a `+` button. Click to expand and
 
 Tracks total assets, liabilities, and net worth over time from account balance snapshots.
 
-Current net worth: ~$199,212 (as of Apr 24, 2026). Credit card balances excluded from liabilities.
+Current net worth: ~$206,116 (as of May 20, 2026). Credit card balances excluded from liabilities. Car note paid off May 1.
 
 Note: Net worth history before Mar 2026 is mock data approximating the real trajectory. Real tracked data starts Mar 2026.
 
@@ -512,6 +512,41 @@ pratik-finances-dashboard/
   imports/             - Drop files here for weekly ingest
     processed/         - Auto-archived after ingest
 ```
+
+---
+
+## Lessons Learned (2026-05-20 Session)
+
+### Net Worth: $206,116 (May 20, 2026)
+Assets: $206,116 | Liabilities: $0 (car note paid off May 1)
+Up from $199,212 on Apr 24 (+$6,904). Nastya's last UCSB paycheck landed May 1 ($3,767.22). Now on single-income lean budget.
+
+### Empower CSV Stops Syncing BFSFCU After ~Apr 24
+The May Empower CSV had no Joint Checking (4346) entries past Apr 24. For May BFSFCU transactions, use the separate BFSFCU bank export. Do NOT also import those BFSFCU entries from the Empower CSV - the descriptions differ and will create silent dupes.
+
+### BFSFCU Export Descriptions Differ from Manual/Empower Descriptions
+The BFSFCU export uses raw bank descriptions (e.g. "Withdrawal INTERNET LOAN PYMT TO LOAN x9830 FINAL CAR PAYMENT") while prior manual entries used clean labels (e.g. "BFSFCU Car Note - Final Payment To Principal"). The SQL dupe key is (date, account, description, amount) - same transaction with different descriptions inserts twice. Always run a post-ingest check: `SELECT date, amount, COUNT(*) FROM transactions WHERE date >= 'YYYY-05-01' GROUP BY date, ABS(amount) HAVING COUNT(*) > 1`.
+
+### Car Note Paid Off May 1, 2026 (Confirmed)
+Final payment $417.23 cleared May 1. BFSFCU Car Note balance = $0 going forward.
+
+### Nastya UCSB Income Ended May 2026
+Last paycheck $3,767.22 landed May 1. No further UCSB paychecks. Budget now runs on Pratik's income only (~$2,563/mo from biweekly paychecks).
+
+### new BUDGET_CATEGORY_RULES Added (May 2026)
+- `"handlebar"` - `expenses_dining`
+- `"rori"` - `expenses_dining`
+- `"tenaya"` - `expenses_dining`
+- `"sama sama"` - `expenses_dining`
+- `"susana otalvaro"` - `expenses_dining` (Venmo to Susana = eating out)
+- `"clean"` - `expenses_fitness`
+- `"magic hour"` - `expenses_personal_misc`
+- `"urban outfitters"` - `expenses_personal_misc`
+- `"milliken market"` - `expenses_groceries`
+- `"cat and b"` - `expenses_pets` (catches "Aplpay The Cat And B..." truncated merchant)
+
+### Cat And Birds Merchant Appears Two Ways in Empower
+Same store shows up as both "Www.catandbirds.com..." (matched by "catandbirds" rule) and "Aplpay The Cat And B..." (truncated Apple Pay). Added "cat and b" rule to catch the truncated form.
 
 ---
 
