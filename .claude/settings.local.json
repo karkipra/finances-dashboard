@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ipconfig | grep -A 1 \"Wi-Fi\" | grep \"IPv4\")",
+      "Bash(ipconfig 2>/dev/null | grep -i \"ipv4\")",
+      "Bash(gh auth:*)",
+      "Bash(which python:*)",
+      "WebSearch",
+      "Bash(cd:*)",
+      "Bash(gh repo:*)",
+      "Bash(python app.py)",
+      "Bash(python -c \":*)",
+      "Bash(python ingest.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/)",
+      "Bash(curl -s http://localhost:5000/api/net-worth)",
+      "Bash(curl -s http://localhost:5000/net-worth)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''Latest:'''', d[-1]\\)\")",
+      "Bash(curl -s \"http://localhost:5000/api/budget-plan?year=2026&month=3\")",
+      "Bash(curl -s \"http://localhost:5000/api/budget-plan?year=2026&month=4\")"
+    ]
+  }
+}
