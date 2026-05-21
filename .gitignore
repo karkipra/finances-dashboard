@@ -9,3 +9,7 @@ __pycache__/
 *.pyo
 *.stackdump
 .DS_Store
+*.log
+dryrun_analysis.py
+ingest_may2026.py
+.claude/
