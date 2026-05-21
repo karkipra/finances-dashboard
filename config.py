@@ -154,8 +154,10 @@ BUDGET_CATEGORY_RULES = {
     "urban outfitters":   "expenses_personal_misc",
     "milliken market":    "expenses_groceries",
     # Personal / misc
-    "franchise tax":      "expenses_personal_misc",
+    "franchise tax":      "one_time_expense",
     "economist":          "one_time_expense",
+    "prime video":        "expenses_entertainment",
+    "amazon prime":       "expenses_entertainment",
     "amazon":             "expenses_personal_misc",
     "target":             "expenses_groceries",
     "haircut":            "expenses_personal_misc",

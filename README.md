@@ -236,7 +236,7 @@ Known BFSFCU transactions to add each session:
 |---------|--------|------------------------|
 | BFSFCU Checking (4346) | Not syncing (Empower shows $0) | Get real balance from BFSFCU app |
 | LendingClub HYSA | Not connected (Empower value permanently stale) | Last real DB balance + $500 per month elapsed |
-| HealthEquity HSA | "Delayed" in Empower (excluded from Empower total) | Carry forward last DB balance unless Pratik updates |
+| HealthEquity HSA | "Delayed" in Empower (excluded from Empower total) | Updated to $3,594.93 May 20, 2026. Carry forward unless Pratik provides update. |
 | FSFCU Visa Signature (Nastya) | Intermittent | Confirm balance each session |
 
 **Rule:** If any of these was not explicitly handled this session, say so. Never let a stale Empower value silently overwrite a manually set correct balance.
@@ -341,7 +341,7 @@ Note: Net worth history before Mar 2026 is mock data approximating the real traj
 | Citi Costco Visa (7865) | Connected | Pratik's card |
 | FSFCU Credit Card (3048) | Connected | |
 | BFSFCU Car Note | Connected | Final payoff May 1, 2026. Balance ~$1,422 until then. |
-| HealthEquity HSA | Delayed | Carry forward $3,314 until Pratik provides update. |
+| HealthEquity HSA | Delayed | Updated to $3,594.93 as of May 20, 2026. Carry forward until next update. |
 | Principal (IMF 401k) | Manual | ~$20,623 as of Mar 2026. Nastya's retirement. |
 | Fidelity (Nastya Roth IRA) | Manual | ~$15,130 as of Mar 2026. |
 | Anastasiia's BFSFCU (8699) | Tracked | Nastya's checking - used for Roth contribution routing |
@@ -443,8 +443,8 @@ Use `/api/equity?as_of=YYYY-MM-DD` to inspect vesting state at any past or futur
 - [ ] Update LendingClub HYSA balance manually each month
 
 ### Budget
-- [ ] Lock April 2026 budget
-- [ ] After April closes: review actuals vs plan, adjust May sub-category amounts if needed
+- [ ] Lock April 2026 budget (still pending)
+- [ ] Lock May 2026 budget once Tesla car insurance (~$157) clears end of month
 - [ ] Seed 2027+ months once income/expense picture for next year becomes clearer
 - [ ] Update lean budget (May-Dec 2026) numbers once Nastya's PhD stipend or part-time income is known
 
@@ -544,9 +544,23 @@ Last paycheck $3,767.22 landed May 1. No further UCSB paychecks. Budget now runs
 - `"urban outfitters"` - `expenses_personal_misc`
 - `"milliken market"` - `expenses_groceries`
 - `"cat and b"` - `expenses_pets` (catches "Aplpay The Cat And B..." truncated merchant)
+- `"prime video"` / `"amazon prime"` - `expenses_entertainment` (before generic "amazon" rule)
+- `"franchise tax"` - changed from `expenses_personal_misc` to `one_time_expense`
 
 ### Cat And Birds Merchant Appears Two Ways in Empower
 Same store shows up as both "Www.catandbirds.com..." (matched by "catandbirds" rule) and "Aplpay The Cat And B..." (truncated Apple Pay). Added "cat and b" rule to catch the truncated form.
+
+### one_time_expense Actual Was Not Showing in Budget "So Far" Column
+Template bug: `budget.html` rendered empty `<td></td>` cells for the actual column on the one-time expense row. Fixed to display `oneTimeActual` with a diff cell matching the same pattern as other rows. Also fixed the condition so the one-time section renders even when `oneTime = 0` but `oneTimeActual > 0`.
+
+### one_time_income Also Needs a budget_plan Row Update
+Inserting the transaction alone is not enough. The income line item on the budget page reads from `budget_plan.one_time_income`. After adding the US Bank $450 bonus transaction, also ran: `UPDATE budget_plan SET planned_amount=450, notes='US Bank checking bonus' WHERE year=2026 AND month=5 AND category='one_time_income'`. Same rule applies to `one_time_expense`.
+
+### HealthEquity HSA Not Grouping Under Retirement on Net Worth Page
+`account_type = 'hsa'` was not in the `ACCOUNT_GROUPS` Retirement keywords array in `net_worth.html`. Added `'hsa'` to the Retirement keywords. HealthEquity now appears in the Retirement group.
+
+### nastya_income Seeded Wrong for Jun/Jul/Nov/Dec 2026
+`seed_budget.py` left `nastya_income = $3,767.22` for Jun, Jul, Nov, Dec 2026. Aug-Oct were correctly $0. Fixed by updating all Jun-Dec 2026 rows to $0 with note "PhD gap - no income". May 2026 correctly stays at $3,767.22 (final paycheck landed May 1).
 
 ---
 

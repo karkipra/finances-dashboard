@@ -612,16 +612,20 @@ function render(data) {
   }
 
   // One-time expense
-  if (oneTime > 0 || nastayGiftsActual > 0 || nastayGiftsPlanned > 0) {
+  if (oneTime > 0 || oneTimeActual > 0 || nastayGiftsActual > 0 || nastayGiftsPlanned > 0) {
     expHtml += sectionLabel('One-time', null, hasActuals, actualHeader);
-    if (oneTime > 0) {
+    if (oneTime > 0 || oneTimeActual > 0) {
       const oneTimeLabel = oneTimeNote
         ? `One-time expense <span style="font-weight:400;color:var(--muted);font-size:11px">(${oneTimeNote})</span>`
         : 'One-time expense';
+      const oneTimeDiff = oneTimeActual - oneTime;
+      const oneTimeDiffStr = (oneTime > 0 && oneTimeActual > 0)
+        ? (oneTimeDiff <= 0 ? `-${fmtExact(Math.abs(oneTimeDiff))}` : `+${fmtExact(oneTimeDiff)}`) : '';
+      const oneTimeDiffCls = oneTimeDiff <= 0 ? 'positive' : 'negative';
       expHtml += `<tr>
         <td style="padding-left:20px;font-size:13px;color:var(--muted)">${oneTimeLabel}</td>
         <td class="right negative" style="font-size:13px">${fmtExact(oneTime)}</td>
-        ${hasActuals ? '<td></td><td></td>' : ''}
+        ${hasActuals ? `<td class="right negative" style="font-size:13px">${oneTimeActual > 0 ? fmtExact(oneTimeActual) : '<span style="color:var(--muted)">—</span>'}</td><td class="right ${oneTimeDiffCls}" style="font-size:11px">${oneTimeDiffStr}</td>` : ''}
       </tr>`;
     }
     if (nastayGiftsPlanned > 0 || nastayGiftsActual > 0) {
