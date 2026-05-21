@@ -139,7 +139,7 @@ BUDGET_CATEGORY_RULES = {
     "katelyn carano":     "expenses_fitness",
     "aerial":             "expenses_fitness",
     "gym":                "expenses_fitness",
-    "clean":              "expenses_fitness",
+    "clean":              "expenses_buffer_misc",  # car wash
     # Car loan
     "to principal":       "expenses_car_loan",
     # Nastya gifts / personal shopping

@@ -224,7 +224,7 @@ BFSFCU (checking 4346) is not syncing with Empower. Until reconnected, all BFSFC
 
 Known BFSFCU transactions to add each session:
 - Pratik paycheck (biweekly)
-- Nastya paycheck (monthly, until May 2026 PhD gap)
+- Nastya paycheck (monthly, ~$3,767.22 - except Aug/Oct 2026 summer gap; Sep 2026 is $5,440 lump sum)
 - Rent to UCSB
 - State Farm rental insurance
 - HYSA contribution
@@ -314,8 +314,9 @@ Transaction drill-down: Every category row has a `+` button. Click to expand and
 |-------|-------|
 | Jan-Apr 2026 | Both incomes, full spending, Roth maxing |
 | Apr 2026 | $1,414 car loan final payment. $300 taxes (1 of 4). 2025 Roth maxed. |
-| May 2026 | Car note paid off (May 1). Nastya income drops to $0. Pratik 3-paycheck month. |
-| May-Dec 2026 | Lean $2,642 budget (Nastya no income). $285/mo taxes (2-4 of 4). |
+| May 2026 | Car note paid off (May 1). Pratik 3-paycheck month. |
+| Aug-Oct 2026 | Nastya summer gap (no UCSB pay). Sep: $5,440 lump sum from position. Aug/Oct: $0. |
+| Nov 2026 | Nastya back to regular pay ($3,767.22/mo). |
 | Oct 2026 | Pratik 3-paycheck month (+$1,281 extra). |
 
 ### Net Worth (`/net-worth`)
@@ -530,8 +531,8 @@ The BFSFCU export uses raw bank descriptions (e.g. "Withdrawal INTERNET LOAN PYM
 ### Car Note Paid Off May 1, 2026 (Confirmed)
 Final payment $417.23 cleared May 1. BFSFCU Car Note balance = $0 going forward.
 
-### Nastya UCSB Income Ended May 2026
-Last paycheck $3,767.22 landed May 1. No further UCSB paychecks. Budget now runs on Pratik's income only (~$2,563/mo from biweekly paychecks).
+### Nastya Summer Gap: Aug-Oct 2026
+Nastya's UCSB summer gap runs Aug-Oct 2026. Jun/Jul/Nov/Dec she is on normal pay ($3,767.22/mo). Sep 2026 she receives a $5,440 lump sum from a position. Aug and Oct are $0.
 
 ### new BUDGET_CATEGORY_RULES Added (May 2026)
 - `"handlebar"` - `expenses_dining`
@@ -559,8 +560,8 @@ Inserting the transaction alone is not enough. The income line item on the budge
 ### HealthEquity HSA Not Grouping Under Retirement on Net Worth Page
 `account_type = 'hsa'` was not in the `ACCOUNT_GROUPS` Retirement keywords array in `net_worth.html`. Added `'hsa'` to the Retirement keywords. HealthEquity now appears in the Retirement group.
 
-### nastya_income Seeded Wrong for Jun/Jul/Nov/Dec 2026
-`seed_budget.py` left `nastya_income = $3,767.22` for Jun, Jul, Nov, Dec 2026. Aug-Oct were correctly $0. Fixed by updating all Jun-Dec 2026 rows to $0 with note "PhD gap - no income". May 2026 correctly stays at $3,767.22 (final paycheck landed May 1).
+### nastya_income Summer Gap: Aug-Oct Only
+Initial seed had Aug-Oct at $0 but Jun/Jul/Nov/Dec also got incorrectly zeroed mid-session. Restored Jun/Jul/Nov/Dec to $3,767.22. Summer gap is Aug-Oct only. Sep has $5,440 lump sum. Aug and Oct are $0.
 
 ---
 
